@@ -32,10 +32,8 @@ A beautiful, feature-rich plugin for [InkyPi](https://github.com/fatihak/InkyPi)
 Install the plugin using the InkyPi CLI:
 
 ```bash
-inkypi install strava_summary https://github.com/YOUR_USERNAME/InkyPi-Strava-Summary
+inkypi install strava_summary https://github.com/CobbleGen/InkyPi-Strava-Plugin
 ```
-
-Replace `YOUR_USERNAME` with your actual GitHub username.
 
 ## Setup
 
