@@ -72,6 +72,18 @@
         const authStatus = document.getElementById('auth-status');
         const authStatusText = document.getElementById('auth-status-text');
         
+        // Load saved settings FIRST - before processing OAuth callback
+        if (loadPluginSettings) {
+            document.getElementById('strava_client_id').value = pluginSettings.strava_client_id || '';
+            document.getElementById('strava_client_secret').value = pluginSettings.strava_client_secret || '';
+            document.getElementById('access_token').value = pluginSettings.access_token || '';
+            document.getElementById('refresh_token').value = pluginSettings.refresh_token || '';
+            document.getElementById('token_expires_at').value = pluginSettings.token_expires_at || '';
+            document.getElementById('display_mode').value = pluginSettings.display_mode || 'summary';
+            document.getElementById('time_mode').value = pluginSettings.time_mode || 'rolling';
+            document.getElementById('days_back').value = pluginSettings.days_back || 7;
+        }
+        
         // Check if we're returning from Strava OAuth
         const urlParams = new URLSearchParams(window.location.search);
         const authCode = urlParams.get('code');
@@ -82,6 +94,9 @@
             exchangeCodeForTokens(authCode);
         } else if (authError) {
             updateAuthStatus('error', `Authorization failed: ${authError}`);
+        } else {
+            // Check token status on normal load
+            checkTokenStatus();
         }
         
         // Toggle days_back visibility based on time_mode
@@ -191,20 +206,6 @@
             } else {
                 updateAuthStatus('success', 'Authorized and ready!');
             }
-        }
-        
-        // Load saved settings
-        if (loadPluginSettings) {
-            document.getElementById('strava_client_id').value = pluginSettings.strava_client_id || '';
-            document.getElementById('strava_client_secret').value = pluginSettings.strava_client_secret || '';
-            document.getElementById('access_token').value = pluginSettings.access_token || '';
-            document.getElementById('refresh_token').value = pluginSettings.refresh_token || '';
-            document.getElementById('token_expires_at').value = pluginSettings.token_expires_at || '';
-            document.getElementById('display_mode').value = pluginSettings.display_mode || 'summary';
-            document.getElementById('time_mode').value = pluginSettings.time_mode || 'rolling';
-            document.getElementById('days_back').value = pluginSettings.days_back || 7;
-            
-            checkTokenStatus();
         }
         
         // Initial visibility check
