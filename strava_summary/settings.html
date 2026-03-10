@@ -7,8 +7,8 @@
             <li>Go to <a href="https://www.strava.com/settings/api" target="_blank">Strava API Settings</a></li>
             <li>Create an application (or use an existing one)</li>
             <li><strong>Important:</strong> Set <strong>Authorization Callback Domain</strong> to: <code>akz-inky.local</code> (or your Pi's hostname)</li>
-            <li>Copy your <strong>Client ID</strong> and paste it below</li>
-            <li>Copy your <strong>Client Secret</strong> and add it in the <strong>API Keys</strong> section of InkyPi with key name: <code>STRAVA_CLIENT_SECRET</code></li>
+            <li>Copy your <strong>Client ID</strong> and <strong>Client Secret</strong> and paste them below</li>
+            <li>Click <strong>"Authorize with Strava"</strong> to complete setup</li>
         </ol>
     </div>
 </div>
@@ -20,9 +20,9 @@
 </div>
 
 <div class="form-group">
-    <small class="form-text" style="color: #28a745;">
-        ✓ Client Secret is stored securely in API Keys section (STRAVA_CLIENT_SECRET)
-    </small>
+    <label for="strava_client_secret" class="form-label">Client Secret:</label>
+    <input type="password" id="strava_client_secret" name="strava_client_secret" placeholder="Enter your Strava Client Secret" class="form-input">
+    <small class="form-text">Your Strava API Client Secret (will be saved securely)</small>
 </div>
 
 <!-- Hidden fields for tokens -->
@@ -84,6 +84,8 @@
         // Load saved settings FIRST - before processing OAuth callback
         if (loadPluginSettings) {
             document.getElementById('strava_client_id').value = pluginSettings.strava_client_id || '';
+            // Load client secret from ENV (via API Keys) if available, otherwise from saved settings
+            document.getElementById('strava_client_secret').value = pluginSettings.strava_client_secret || '';
             document.getElementById('access_token').value = pluginSettings.access_token || '';
             document.getElementById('refresh_token').value = pluginSettings.refresh_token || '';
             document.getElementById('token_expires_at').value = pluginSettings.token_expires_at || '';
@@ -123,14 +125,21 @@
         // Authorize with Strava button
         authorizeBtn.addEventListener('click', () => {
             const clientId = document.getElementById('strava_client_id').value;
+            const clientSecret = document.getElementById('strava_client_secret').value;
             
             if (!clientId) {
                 alert('Please enter your Strava Client ID first');
                 return;
             }
             
-            // Store client ID temporarily in sessionStorage so it's available after OAuth redirect
+            if (!clientSecret) {
+                alert('Please enter your Strava Client Secret or add STRAVA_CLIENT_SECRET to API Keys and reload this page');
+                return;
+            }
+            
+            // Store credentials temporarily in sessionStorag
             sessionStorage.setItem('strava_client_id', clientId);
+            sessionStorage.setItem('strava_client_secret', clientSecret);
             
             // Build authorization URL
             const redirectUri = window.location.href.split('?')[0]; // Current page without query params
@@ -153,8 +162,15 @@
                 }
             }
             
-            // Get Client Secret from plugin settings (loaded from ENV via API Keys)
-            const clientSecret = pluginSettings.strava_client_secret || '';
+            // Get Client Secret from form (will be loaded from ENV/API Keys if configured there)
+            let clientSecret = document.getElementById('strava_client_secret').value;
+            
+            if (!clientSecret) {
+                clientSecret = sessionStorage.getItem('strava_client_secret');
+                if (clientSecret) {
+                    document.getElementById('strava_client_secret').value = clientSecret;
+                }
+            }
             
             if (!clientId) {
                 updateAuthStatus('error', 'Client ID required to complete authorization');
@@ -162,7 +178,7 @@
             }
             
             if (!clientSecret) {
-                updateAuthStatus('error', 'Client Secret not found. Please add STRAVA_CLIENT_SECRET to API Keys section.');
+                updateAuthStatus('error', 'Client Secret required. Please enter it in the form above.');
                 return;
             }
             
@@ -197,6 +213,7 @@
                 
                 // Clean up sessionStorage
                 sessionStorage.removeItem('strava_client_id');
+                sessionStorage.removeItem('strava_client_secret');
                 
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -209,14 +226,25 @@
         // Update authorization status display
         function updateAuthStatus(status, message) {
             authStatusText.textContent = message;
-            authStatus.style.backgroundColor = 
-                status === 'success' ? '#d4edda' :
-                status === 'error' ? '#f8d7da' :
-                status === 'pending' ? '#fff3cd' : '#e9ecef';
-            authStatus.style.color = 
-                status === 'success' ? '#155724' :
-                status === 'error' ? '#721c24' :
-                status === 'pending' ? '#856404' : '#666';
+            
+            // Use high-contrast colors with borders
+            if (status === 'success') {
+                authStatus.style.backgroundColor = '#ffffff';
+                authStatus.style.color = '#28a745';
+                authStatus.style.border = '2px solid #28a745';
+            } else if (status === 'error') {
+                authStatus.style.backgroundColor = '#ffffff';
+                authStatus.style.color = '#dc3545';
+                authStatus.style.border = '2px solid #dc3545';
+            } else if (status === 'pending') {
+                authStatus.style.backgroundColor = '#ffffff';
+                authStatus.style.color = '#ffc107';
+                authStatus.style.border = '2px solid #ffc107';
+            } else {
+                authStatus.style.backgroundColor = '#f8f9fa';
+                authStatus.style.color = '#333333';
+                authStatus.style.border = '1px solid #dee2e6';
+            }
         }
         
         // Check token status on load

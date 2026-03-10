@@ -123,10 +123,9 @@ class Template(BasePlugin):
             if refresh_token:
                 logger.info("Access token expired, attempting refresh")
                 try:
-                    # Get client credentials
+                    # Get client credentials from settings
                     client_id = settings.get("strava_client_id")
-                    # Client secret comes from environment/API Keys
-                    client_secret = device_config.load_env_key("STRAVA_CLIENT_SECRET")
+                    client_secret = settings.get("strava_client_secret")
                     
                     new_token = refresh_access_token(
                         client_id,
