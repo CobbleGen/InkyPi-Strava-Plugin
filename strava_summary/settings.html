@@ -115,11 +115,21 @@
         // Authorize with Strava button
         authorizeBtn.addEventListener('click', () => {
             const clientId = document.getElementById('strava_client_id').value;
+            const clientSecret = document.getElementById('strava_client_secret').value;
             
             if (!clientId) {
                 alert('Please enter your Strava Client ID first');
                 return;
             }
+            
+            if (!clientSecret) {
+                alert('Please enter your Strava Client Secret first');
+                return;
+            }
+            
+            // Store credentials temporarily in sessionStorage so they're available after OAuth redirect
+            sessionStorage.setItem('strava_client_id', clientId);
+            sessionStorage.setItem('strava_client_secret', clientSecret);
             
             // Build authorization URL
             const redirectUri = window.location.href.split('?')[0]; // Current page without query params
@@ -132,8 +142,23 @@
         
         // Exchange authorization code for access/refresh tokens
         async function exchangeCodeForTokens(code) {
-            const clientId = document.getElementById('strava_client_id').value;
-            const clientSecret = document.getElementById('strava_client_secret').value;
+            // Try to get credentials from form fields first, then sessionStorage
+            let clientId = document.getElementById('strava_client_id').value;
+            let clientSecret = document.getElementById('strava_client_secret').value;
+            
+            if (!clientId) {
+                clientId = sessionStorage.getItem('strava_client_id');
+                if (clientId) {
+                    document.getElementById('strava_client_id').value = clientId;
+                }
+            }
+            
+            if (!clientSecret) {
+                clientSecret = sessionStorage.getItem('strava_client_secret');
+                if (clientSecret) {
+                    document.getElementById('strava_client_secret').value = clientSecret;
+                }
+            }
             
             if (!clientId || !clientSecret) {
                 updateAuthStatus('error', 'Client ID and Secret required to complete authorization');
@@ -154,7 +179,11 @@
                         code: code,
                         grant_type: 'authorization_code'
                     })
-                });
+                });sessionStorage
+                sessionStorage.removeItem('strava_client_id');
+                sessionStorage.removeItem('strava_client_secret');
+                
+                // Clean up 
                 
                 if (!response.ok) {
                     throw new Error(`Token exchange failed: ${response.status}`);
