@@ -1,6 +1,6 @@
 {
-    "display_name": "Template Plugin",
-    "id": "plugin_template",
+    "display_name": "Strava Summary",
+    "id": "strava_summary",
     "class": "Template",
-    "repository": "https://github.com/fatihak/InkyPi-Plugin-Template"
+    "repository": "https://github.com/CobbleGen/InkyPi-Strava-Summary"
 }

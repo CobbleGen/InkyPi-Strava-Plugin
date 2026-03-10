@@ -1,22 +1,213 @@
+<!-- Strava API Credentials -->
 <div class="form-group">
-    <label for="title" class="form-label">Title:</label>
-    <input type="text" id="title" name="title" placeholder="Hello World" required class="form-input">
+    <label class="form-label">Strava API Setup</label>
+    <small class="form-text">
+        Get your credentials from <a href="https://www.strava.com/settings/api" target="_blank">Strava API Settings</a>
+    </small>
+</div>
+
+<div class="form-group">
+    <label for="strava_client_id" class="form-label">Client ID:</label>
+    <input type="text" id="strava_client_id" name="strava_client_id" placeholder="12345" required class="form-input">
+</div>
+
+<div class="form-group">
+    <label for="strava_client_secret" class="form-label">Client Secret:</label>
+    <input type="text" id="strava_client_secret" name="strava_client_secret" placeholder="abc123..." required class="form-input">
+</div>
+
+<!-- Hidden fields for tokens -->
+<input type="hidden" id="access_token" name="access_token">
+<input type="hidden" id="refresh_token" name="refresh_token">
+<input type="hidden" id="token_expires_at" name="token_expires_at">
+
+<!-- Authorization Status and Button -->
+<div class="form-group">
+    <label class="form-label">Authorization Status:</label>
+    <div id="auth-status" style="padding: 10px; margin-bottom: 10px; border-radius: 4px;">
+        <span id="auth-status-text">Not authorized</span>
+    </div>
+    <button type="button" id="authorize-btn" class="btn btn-primary" style="padding: 8px 16px; cursor: pointer;">
+        Authorize with Strava
+    </button>
+    <small class="form-text">Click to authorize this app to read your Strava activities</small>
+</div>
+
+<!-- Display Settings -->
+<hr style="margin: 20px 0;">
+
+<div class="form-group">
+    <label for="display_mode" class="form-label">Display Mode:</label>
+    <select id="display_mode" name="display_mode" required class="form-input">
+        <option value="summary">Summary (totals only)</option>
+        <option value="calendar">Calendar (daily activities)</option>
+        <option value="combined" selected>Combined (summary + calendar)</option>
+    </select>
+    <small class="form-text">Show aggregated totals, calendar view, or both together</small>
+</div>
+
+<div class="form-group">
+    <label for="time_mode" class="form-label">Time Range:</label>
+    <select id="time_mode" name="time_mode" required class="form-input">
+        <option value="rolling">Last N days (rolling)</option>
+        <option value="current_week">This week (Mon-Today)</option>
+    </select>
+    <small class="form-text">Choose between rolling days or current week starting Monday</small>
+</div>
+
+<div class="form-group" id="days_back_group">
+    <label for="days_back" class="form-label">Days to look back:</label>
+    <input type="number" id="days_back" name="days_back" placeholder="7" value="7" min="1" max="365" required class="form-input">
+    <small class="form-text">Number of days to include in the activity summary</small>
 </div>
 
 <script>
     /**
-     * Populate plugin settings form fields on page load when editing an existing plugin instance.
-     *
-     * - `loadPluginSettings` is a boolean flag indicating whether the form
-     *   is editing an existing plugin (true) or creating a new plugin (false).
-     * - `pluginSettings` is an object containing saved values for this plugin.
-     *
-     * This script automatically fills inputs with saved settings.
+     * Strava OAuth and Settings Management
      */
-    document.addEventListener('DOMContentLoaded', () => {        
-        if (loadPluginSettings) {
-            // Populate text inputs
-            document.getElementById('title').value = pluginSettings.title;
+    document.addEventListener('DOMContentLoaded', () => {
+        const timeModeSelect = document.getElementById('time_mode');
+        const daysBackGroup = document.getElementById('days_back_group');
+        const authorizeBtn = document.getElementById('authorize-btn');
+        const authStatus = document.getElementById('auth-status');
+        const authStatusText = document.getElementById('auth-status-text');
+        
+        // Check if we're returning from Strava OAuth
+        const urlParams = new URLSearchParams(window.location.search);
+        const authCode = urlParams.get('code');
+        const authError = urlParams.get('error');
+        
+        if (authCode) {
+            // Exchange authorization code for tokens
+            exchangeCodeForTokens(authCode);
+        } else if (authError) {
+            updateAuthStatus('error', `Authorization failed: ${authError}`);
         }
+        
+        // Toggle days_back visibility based on time_mode
+        function updateDaysBackVisibility() {
+            if (timeModeSelect.value === 'current_week') {
+                daysBackGroup.style.display = 'none';
+                document.getElementById('days_back').required = false;
+            } else {
+                daysBackGroup.style.display = 'block';
+                document.getElementById('days_back').required = true;
+            }
+        }
+        
+        timeModeSelect.addEventListener('change', updateDaysBackVisibility);
+        
+        // Authorize with Strava button
+        authorizeBtn.addEventListener('click', () => {
+            const clientId = document.getElementById('strava_client_id').value;
+            
+            if (!clientId) {
+                alert('Please enter your Strava Client ID first');
+                return;
+            }
+            
+            // Build authorization URL
+            const redirectUri = window.location.href.split('?')[0]; // Current page without query params
+            const scope = 'activity:read_all';
+            const authUrl = `https://www.strava.com/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
+            
+            // Redirect to Strava authorization page
+            window.location.href = authUrl;
+        });
+        
+        // Exchange authorization code for access/refresh tokens
+        async function exchangeCodeForTokens(code) {
+            const clientId = document.getElementById('strava_client_id').value;
+            const clientSecret = document.getElementById('strava_client_secret').value;
+            
+            if (!clientId || !clientSecret) {
+                updateAuthStatus('error', 'Client ID and Secret required to complete authorization');
+                return;
+            }
+            
+            updateAuthStatus('pending', 'Exchanging code for tokens...');
+            
+            try {
+                const response = await fetch('https://www.strava.com/oauth/token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        client_secret: clientSecret,
+                        code: code,
+                        grant_type: 'authorization_code'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Token exchange failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // Store tokens in hidden fields
+                document.getElementById('access_token').value = data.access_token;
+                document.getElementById('refresh_token').value = data.refresh_token;
+                document.getElementById('token_expires_at').value = data.expires_at;
+                
+                updateAuthStatus('success', 'Successfully authorized! Tokens received.');
+                
+                // Clean up URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+            } catch (error) {
+                updateAuthStatus('error', `Failed to get tokens: ${error.message}`);
+            }
+        }
+        
+        // Update authorization status display
+        function updateAuthStatus(status, message) {
+            authStatusText.textContent = message;
+            authStatus.style.backgroundColor = 
+                status === 'success' ? '#d4edda' :
+                status === 'error' ? '#f8d7da' :
+                status === 'pending' ? '#fff3cd' : '#e9ecef';
+            authStatus.style.color = 
+                status === 'success' ? '#155724' :
+                status === 'error' ? '#721c24' :
+                status === 'pending' ? '#856404' : '#666';
+        }
+        
+        // Check token status on load
+        function checkTokenStatus() {
+            const accessToken = document.getElementById('access_token').value;
+            const expiresAt = document.getElementById('token_expires_at').value;
+            
+            if (!accessToken) {
+                updateAuthStatus('', 'Not authorized');
+                return;
+            }
+            
+            const now = Math.floor(Date.now() / 1000);
+            if (expiresAt && parseInt(expiresAt) < now) {
+                updateAuthStatus('error', 'Token expired - please re-authorize');
+            } else {
+                updateAuthStatus('success', 'Authorized and ready!');
+            }
+        }
+        
+        // Load saved settings
+        if (loadPluginSettings) {
+            document.getElementById('strava_client_id').value = pluginSettings.strava_client_id || '';
+            document.getElementById('strava_client_secret').value = pluginSettings.strava_client_secret || '';
+            document.getElementById('access_token').value = pluginSettings.access_token || '';
+            document.getElementById('refresh_token').value = pluginSettings.refresh_token || '';
+            document.getElementById('token_expires_at').value = pluginSettings.token_expires_at || '';
+            document.getElementById('display_mode').value = pluginSettings.display_mode || 'summary';
+            document.getElementById('time_mode').value = pluginSettings.time_mode || 'rolling';
+            document.getElementById('days_back').value = pluginSettings.days_back || 7;
+            
+            checkTokenStatus();
+        }
+        
+        // Initial visibility check
+        updateDaysBackVisibility();
     });
 </script>
