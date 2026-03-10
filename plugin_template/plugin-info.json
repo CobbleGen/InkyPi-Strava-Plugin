@@ -2,5 +2,5 @@
     "display_name": "Strava Summary",
     "id": "strava_summary",
     "class": "Template",
-    "repository": "https://github.com/CobbleGen/InkyPi-Strava-Summary"
+    "repository": "https://github.com/CobbleGen/InkyPi-Strava-Plugin"
 }

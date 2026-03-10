@@ -314,8 +314,8 @@ def group_activities_by_day(activities, start_date):
         start_date (datetime): Start date for the period
         
     Returns:
-        dict: Dictionary mapping date strings (YYYY-MM-DD) to lists of activity types
-              Example: {'2026-03-10': ['Run', 'Bike'], '2026-03-11': ['Swim']}
+        dict: Dictionary mapping date strings (YYYY-MM-DD) to lists of activity dicts
+              Example: {'2026-03-10': [{'type': 'Run', 'duration': 3600}, {'type': 'Bike', 'duration': 7200}]}
     """
     from datetime import datetime
     from collections import defaultdict
@@ -336,6 +336,7 @@ def group_activities_by_day(activities, start_date):
             
             # Determine activity type icon name
             sport_type = activity.get('sport_type') or activity.get('type', '')
+            moving_time = activity.get('moving_time', 0) or 0
             
             if sport_type in RUNNING_TYPES:
                 icon_name = 'Run'
@@ -346,9 +347,11 @@ def group_activities_by_day(activities, start_date):
             else:
                 continue  # Skip other activity types
             
-            # Add to day (avoid duplicates for same type)
-            if icon_name not in days_dict[date_key]:
-                days_dict[date_key].append(icon_name)
+            # Add activity with duration info
+            days_dict[date_key].append({
+                'type': icon_name,
+                'duration': moving_time
+            })
                 
         except Exception as e:
             logger.warning(f"Could not parse activity date: {date_str}, {e}")
@@ -554,7 +557,7 @@ def render_stats(draw, width, height, stats, period_label):
 
 def render_calendar(draw, image, width, height, activities, start_date, period_label):
     """
-    Render a calendar view showing daily activities with icons.
+    Render a calendar view showing daily activities with icons and durations.
     
     Args:
         draw: PIL ImageDraw object
@@ -572,10 +575,12 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
     header_size = int(width * 0.045)
     day_label_size = int(width * 0.035)
     date_size = int(width * 0.032)
+    duration_size = int(width * 0.025)
     
     header_font = get_font("Jost", header_size)
     day_font = get_font("Jost", day_label_size)
     date_font = get_font("Jost", date_size)
+    duration_font = get_font("Jost", duration_size)
     
     padding = int(width * 0.03)
     y_pos = padding
@@ -626,18 +631,29 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
         
         # Activity icons for this day
         date_key = day.strftime('%Y-%m-%d')
-        activity_types = activities_by_day.get(date_key, [])
+        day_activities = activities_by_day.get(date_key, [])
         
-        if activity_types:
-            # Stack icons vertically under the date
-            for activity_type in activity_types[:3]:  # Max 3 icons per day
+        if day_activities:
+            # Stack icons vertically under the date with duration
+            for activity_data in day_activities[:3]:  # Max 3 activities per day
+                activity_type = activity_data['type']
+                duration = activity_data['duration']
+                
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
                     # Center icon in column (calculate center of column)
                     col_center_x = x_pos + (col_width // 2)
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
-                    current_y += icon.height + 3
+                    current_y += icon.height + 2
+                    
+                    # Add duration below icon
+                    duration_text = format_duration(duration)
+                    bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
+                    duration_width = bbox[2] - bbox[0]
+                    duration_x = col_center_x - (duration_width // 2)
+                    draw.text((duration_x, current_y), duration_text, fill=text_secondary, font=duration_font)
+                    current_y += duration_size + 5
         else:
             # Show a dot or dash for no activities
             dash_y = current_y + icon_size // 2
@@ -664,16 +680,18 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     text_primary = "black"
     text_secondary = "#666666"
     
-    # Font sizes - smaller to fit both views
-    header_size = int(width * 0.04)
-    stat_size = int(width * 0.045)
-    tiny_size = int(width * 0.028)
-    day_label_size = int(width * 0.03)
+    # Font sizes - give more space to summary section
+    header_size = int(width * 0.045)
+    stat_size = int(width * 0.055)
+    tiny_size = int(width * 0.032)
+    day_label_size = int(width * 0.028)
+    duration_size = int(width * 0.022)
     
     header_font = get_font("Jost", header_size)
     stat_font = get_font("Jost", stat_size)
     tiny_font = get_font("Jost", tiny_size)
     day_font = get_font("Jost", day_label_size)
+    duration_font = get_font("Jost", duration_size)
     
     padding = int(width * 0.03)
     y_pos = padding
@@ -691,16 +709,16 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     
     # Separator
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=1)
-    y_pos += int(padding * 0.6)
+    y_pos += int(padding * 0.8)
     
-    # Summary stats - compact horizontal layout
+    # Summary stats - more spacious layout
     if stats['total_km'] > 0:
         # Total distance and time on one line
         total_text = f"{stats['total_km']:.1f} km • {format_duration(stats['total_time_seconds'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)
-        y_pos += stat_size + int(padding * 0.3)
+        y_pos += stat_size + int(padding * 0.5)
         
-        # Activity breakdown - horizontal icons with numbers
+        # Activity breakdown - horizontal icons with numbers and more spacing
         activities_summary = []
         if stats['run_km'] > 0:
             activities_summary.append(("Run", stats['run_km'], stats['run_time_seconds']))
@@ -710,7 +728,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             activities_summary.append(("Swim", stats['swim_km'], stats['swim_time_seconds']))
         
         if activities_summary:
-            icon_size = int(tiny_size * 1.3)
+            icon_size = int(tiny_size * 1.5)
             x_offset = padding
             
             for activity_icon, km, seconds in activities_summary:
@@ -718,23 +736,23 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                 icon = load_activity_icon(activity_icon, icon_size)
                 if icon:
                     image.paste(icon, (x_offset, y_pos), icon)
-                    x_offset += icon.width + 3
+                    x_offset += icon.width + 4
                 
                 # Distance
                 dist_text = f"{km:.0f}"
-                draw.text((x_offset, y_pos), dist_text, fill=text_primary, font=tiny_font)
+                draw.text((x_offset, y_pos + 2), dist_text, fill=text_primary, font=tiny_font)
                 bbox = draw.textbbox((0, 0), dist_text, font=tiny_font)
-                x_offset += (bbox[2] - bbox[0]) + 2
+                x_offset += (bbox[2] - bbox[0]) + 3
                 
                 # Unit
-                draw.text((x_offset, y_pos + 2), "km", fill=text_secondary, font=tiny_font)
-                x_offset += 30  # Space before next activity
+                draw.text((x_offset, y_pos + 4), "km", fill=text_secondary, font=tiny_font)
+                x_offset += 35  # More space before next activity
             
-            y_pos += icon_size + int(padding * 0.6)
+            y_pos += icon_size + int(padding * 0.8)
     
     # Separator before calendar
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 0.6)
+    y_pos += int(padding * 0.7)
     
     # Calendar section
     # Group activities by day
@@ -776,17 +794,28 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         
         # Activity icons for this day
         date_key = day.strftime('%Y-%m-%d')
-        activity_types = activities_by_day.get(date_key, [])
+        day_activities = activities_by_day.get(date_key, [])
         
-        if activity_types:
-            # Stack icons vertically under the date
-            for activity_type in activity_types[:3]:  # Max 3 icons per day
+        if day_activities:
+            # Stack icons vertically under the date with duration
+            for activity_data in day_activities[:2]:  # Max 2 activities per day in combined view
+                activity_type = activity_data['type']
+                duration = activity_data['duration']
+                
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
                     # Center icon in column
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
-                    current_y += icon.height + 2
+                    current_y += icon.height + 1
+                    
+                    # Add duration below icon
+                    duration_text = format_duration(duration)
+                    bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
+                    duration_width = bbox[2] - bbox[0]
+                    duration_x = col_center_x - (duration_width // 2)
+                    draw.text((duration_x, current_y), duration_text, fill=text_secondary, font=duration_font)
+                    current_y += duration_size + 3
         else:
             # Show a dash for no activities
             dash_y = current_y + icon_size // 2
