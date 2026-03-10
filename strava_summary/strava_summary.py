@@ -407,10 +407,9 @@ def load_activity_icon(icon_name, target_height):
         PIL.Image or None: Resized icon image, or None if not found
     """
     try:
-        # Get the path to the images folder relative to this file
+        # Get the path to the images folder (inside the plugin folder)
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        plugin_dir = os.path.dirname(current_dir)
-        icon_path = os.path.join(plugin_dir, "images", f"{icon_name}.png")
+        icon_path = os.path.join(current_dir, "images", f"{icon_name}.png")
         
         if os.path.exists(icon_path):
             icon = Image.open(icon_path)
@@ -685,7 +684,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     stat_size = int(width * 0.055)
     tiny_size = int(width * 0.032)
     day_label_size = int(width * 0.028)
-    duration_size = int(width * 0.022)
+    duration_size = int(width * 0.024)  # Slightly larger for better visibility
     
     header_font = get_font("Jost", header_size)
     stat_font = get_font("Jost", stat_size)
@@ -716,9 +715,9 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         # Total distance and time on one line
         total_text = f"{stats['total_km']:.1f} km • {format_duration(stats['total_time_seconds'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)
-        y_pos += stat_size + int(padding * 0.5)
+        y_pos += stat_size + int(padding * 0.6)
         
-        # Activity breakdown - horizontal icons with numbers and more spacing
+        # Activity breakdown - horizontal layout with icon, distance AND time per activity
         activities_summary = []
         if stats['run_km'] > 0:
             activities_summary.append(("Run", stats['run_km'], stats['run_time_seconds']))
@@ -728,27 +727,32 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             activities_summary.append(("Swim", stats['swim_km'], stats['swim_time_seconds']))
         
         if activities_summary:
-            icon_size = int(tiny_size * 1.5)
-            x_offset = padding
+            icon_size = int(tiny_size * 1.8)
             
-            for activity_icon, km, seconds in activities_summary:
+            # Calculate spacing to distribute activities evenly
+            available_width = width - (2 * padding)
+            col_width = available_width // len(activities_summary)
+            
+            for i, (activity_icon, km, seconds) in enumerate(activities_summary):
+                x_offset = padding + (i * col_width)
+                current_y = y_pos
+                
                 # Icon
                 icon = load_activity_icon(activity_icon, icon_size)
                 if icon:
-                    image.paste(icon, (x_offset, y_pos), icon)
-                    x_offset += icon.width + 4
+                    image.paste(icon, (x_offset, current_y), icon)
+                    current_y += icon.height + 4
                 
-                # Distance
-                dist_text = f"{km:.0f}"
-                draw.text((x_offset, y_pos + 2), dist_text, fill=text_primary, font=tiny_font)
-                bbox = draw.textbbox((0, 0), dist_text, font=tiny_font)
-                x_offset += (bbox[2] - bbox[0]) + 3
+                # Distance with unit
+                dist_text = f"{km:.1f} km"
+                draw.text((x_offset, current_y), dist_text, fill=text_primary, font=tiny_font)
+                current_y += tiny_size + 2
                 
-                # Unit
-                draw.text((x_offset, y_pos + 4), "km", fill=text_secondary, font=tiny_font)
-                x_offset += 35  # More space before next activity
+                # Time
+                time_text = format_duration(seconds)
+                draw.text((x_offset, current_y), time_text, fill=text_secondary, font=tiny_font)
             
-            y_pos += icon_size + int(padding * 0.8)
+            y_pos += icon_size + (tiny_size * 2) + int(padding * 0.8)
     
     # Separator before calendar
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=2)
