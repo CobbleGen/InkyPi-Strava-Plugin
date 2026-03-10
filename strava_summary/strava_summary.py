@@ -60,8 +60,9 @@ class Template(BasePlugin):
             if time_mode == "current_week":
                 after_date, period_label = get_current_week_start()
             else:
-                after_date = datetime.now() - timedelta(days=days_back)
-                period_label = f"Past {days_back} Days" if days_back != 1 else "Past Day"
+                # Include today in the range: if days_back=7, show past 6 days + today = 7 days total
+                after_date = datetime.now() - timedelta(days=days_back - 1)
+                period_label = f"Last {days_back} Days" if days_back != 1 else "Today"
 
             # Fetch activities from Strava
             activities = fetch_strava_activities(access_token, after_date)
@@ -466,24 +467,24 @@ def render_stats(draw, width, height, stats, period_label):
     number_font = get_font("Jost", small_number_size)
     label_font = get_font("Jost", tiny_label_size)
     
-    padding = int(width * 0.04)
-    y_pos = padding
+    padding = int(width * 0.05)  # Increased from 0.04 to 0.05
+    y_pos = padding * 2  # Start lower
     
     # Load and place Strava logo in top right
     logo_height = int(header_size * 1.2)
     strava_logo = load_activity_icon("Strava_Logo", logo_height)
     if strava_logo:
         logo_x = width - padding - strava_logo.width
-        image.paste(strava_logo, (logo_x, padding), strava_logo)
+        image.paste(strava_logo, (logo_x, padding * 2), strava_logo)
     
     # Header with period
     draw.text((padding, y_pos), period_label.upper(), fill=strava_accent, font=header_font)
-    y_pos += header_size + int(padding * 0.3)
+    y_pos += header_size + int(padding * 1.0)  # Increased from 0.3 to 1.0
     
     # Draw a subtle line under header
     line_y = y_pos
     draw.line([(padding, line_y), (width - padding, line_y)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 0.8)
+    y_pos += int(padding * 1.8)  # Increased from 0.8 to 1.8
     
     # Main stats section - emphasize total with big numbers
     if stats['total_km'] > 0:
@@ -497,12 +498,12 @@ def render_stats(draw, width, height, stats, period_label):
         draw.text((padding + text_width + 5, y_pos + big_number_size - tiny_label_size - 5), 
                   "km", fill=text_secondary, font=label_font)
         
-        y_pos += big_number_size + int(padding * 0.2)
+        y_pos += big_number_size + int(padding * 1.0)  # Increased from 0.2 to 1.0
         
         # Total time below
         time_text = format_duration(stats['total_time_seconds'])
         draw.text((padding, y_pos), time_text, fill=text_secondary, font=number_font)
-        y_pos += number_font.size + int(padding * 1.2)
+        y_pos += number_font.size + int(padding * 2.5)  # Increased from 1.2 to 2.5
     
     # Activity breakdown - compact grid layout with icons
     activities = []
@@ -516,7 +517,7 @@ def render_stats(draw, width, height, stats, period_label):
     if activities:
         # Draw separator line
         draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=1)
-        y_pos += int(padding * 0.8)
+        y_pos += int(padding * 2.0)  # Increased from 0.8 to 2.0
         
         # Icon size for activities
         icon_size = int(tiny_label_size * 1.5)
@@ -529,7 +530,7 @@ def render_stats(draw, width, height, stats, period_label):
             col = i % 3
             row = i // 3
             x_pos = padding + (col * col_width)
-            current_y = y_pos + (row * int(padding * 3.5))
+            current_y = y_pos + (row * int(padding * 6.0))  # Increased from 3.5 to 6.0
             
             # Load and place activity icon
             icon = load_activity_icon(icon_name, icon_size)
@@ -538,11 +539,11 @@ def render_stats(draw, width, height, stats, period_label):
                 # Label next to icon
                 draw.text((x_pos + icon_size + 5, current_y), label_text, 
                          fill=text_secondary, font=label_font)
-                current_y += icon_size + 5
+                current_y += icon_size + 10  # Increased from 5 to 10
             else:
                 # Fallback to text if icon not found
                 draw.text((x_pos, current_y), label_text, fill=text_secondary, font=label_font)
-                current_y += tiny_label_size + 5
+                current_y += tiny_label_size + 10  # Increased from 5 to 10
             
             # Distance
             distance = f"{km:.1f}"
@@ -553,7 +554,7 @@ def render_stats(draw, width, height, stats, period_label):
             dist_width = bbox[2] - bbox[0]
             draw.text((x_pos + dist_width + 3, current_y + 3), "km", 
                      fill=text_secondary, font=label_font)
-            current_y += number_font.size + 3
+            current_y += number_font.size + 6  # Increased from 3 to 6
             
             # Time
             time_str = format_duration(seconds)
@@ -587,23 +588,23 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
     date_font = get_font("Jost", date_size)
     duration_font = get_font("Jost", duration_size)
     
-    padding = int(width * 0.03)
-    y_pos = padding
+    padding = int(width * 0.05)  # Increased from 0.03 to 0.05
+    y_pos = padding * 2  # Start lower
     
     # Load and place Strava logo in top right
     logo_height = int(header_size * 1.2)
     strava_logo = load_activity_icon("Strava_Logo", logo_height)
     if strava_logo:
         logo_x = width - padding - strava_logo.width
-        image.paste(strava_logo, (logo_x, padding), strava_logo)
+        image.paste(strava_logo, (logo_x, padding * 2), strava_logo)
     
     # Header with period
     draw.text((padding, y_pos), period_label.upper(), fill=text_primary, font=header_font)
-    y_pos += header_size + int(padding * 0.5)
+    y_pos += header_size + int(padding * 1.5)  # Increased from 0.5 to 1.5
     
     # Draw separator line
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 0.8)
+    y_pos += int(padding * 2.0)  # Increased from 0.8 to 2.0
     
     # Group activities by day
     activities_by_day = group_activities_by_day(activities, start_date)
@@ -627,12 +628,12 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
         # Day of week (Mon, Tue, etc.)
         day_name = day.strftime('%a').upper()
         draw.text((x_pos, current_y), day_name, fill=text_secondary, font=day_font)
-        current_y += day_label_size + 3
+        current_y += day_label_size + 8  # Increased from 3 to 8
         
         # Date (10)
         day_number = day.strftime('%d')
         draw.text((x_pos, current_y), day_number, fill=text_primary, font=date_font)
-        current_y += date_size + int(padding * 0.5)
+        current_y += date_size + int(padding * 1.5)  # Increased from 0.5 to 1.5
         
         # Activity icons for this day
         date_key = day.strftime('%Y-%m-%d')
@@ -651,7 +652,7 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                     col_center_x = x_pos + (col_width // 2)
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
-                    current_y += icon.height + 2
+                    current_y += icon.height + 6  # Increased from 2 to 6
                     
                     # Add distance below icon
                     distance_text = f"{distance_km:.1f} km"
@@ -659,7 +660,7 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                     distance_width = bbox[2] - bbox[0]
                     distance_x = col_center_x - (distance_width // 2)
                     draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
-                    current_y += duration_size + 1
+                    current_y += duration_size + 4  # Increased from 1 to 4
                     
                     # Add duration below distance
                     duration_text = format_duration(duration)
@@ -667,7 +668,7 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                     duration_width = bbox[2] - bbox[0]
                     duration_x = col_center_x - (duration_width // 2)
                     draw.text((duration_x, current_y), duration_text, fill=text_secondary, font=duration_font)
-                    current_y += duration_size + 5
+                    current_y += duration_size + 15  # Increased from 5 to 15
         else:
             # Show a dot or dash for no activities
             dash_y = current_y + icon_size // 2
@@ -707,30 +708,30 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     day_font = get_font("Jost", day_label_size)
     duration_font = get_font("Jost", duration_size)
     
-    padding = int(width * 0.03)
-    y_pos = padding
+    padding = int(width * 0.05)  # Increased from 0.03 to 0.05
+    y_pos = padding * 2  # Start lower
     
     # Load and place Strava logo in top right
     logo_height = int(header_size * 1.2)
     strava_logo = load_activity_icon("Strava_Logo", logo_height)
     if strava_logo:
         logo_x = width - padding - strava_logo.width
-        image.paste(strava_logo, (logo_x, padding), strava_logo)
+        image.paste(strava_logo, (logo_x, padding * 2), strava_logo)
     
     # Header
     draw.text((padding, y_pos), period_label.upper(), fill=text_primary, font=header_font)
-    y_pos += header_size + int(padding * 0.4)
+    y_pos += header_size + int(padding * 1.2)  # Increased from 0.4 to 1.2
     
     # Separator
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=1)
-    y_pos += int(padding * 0.8)
+    y_pos += int(padding * 1.8)  # Increased from 0.8 to 1.8
     
     # Summary stats - more spacious layout
     if stats['total_km'] > 0:
         # Total distance and time on one line
         total_text = f"{stats['total_km']:.1f} km • {format_duration(stats['total_time_seconds'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)
-        y_pos += stat_size + int(padding * 0.6)
+        y_pos += stat_size + int(padding * 1.5)  # Increased from 0.6 to 1.5
         
         # Activity breakdown - horizontal layout with icon, distance AND time per activity
         activities_summary = []
@@ -767,11 +768,11 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                 time_text = format_duration(seconds)
                 draw.text((x_offset, current_y), time_text, fill=text_secondary, font=tiny_font)
             
-            y_pos += icon_size + (tiny_size * 2) + int(padding * 0.8)
+            y_pos += icon_size + (tiny_size * 2) + int(padding * 2.0)  # Increased from 0.8 to 2.0
     
     # Separator before calendar with more spacing
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 1.2)
+    y_pos += int(padding * 2.5)  # Increased from 1.2 to 2.5
     
     # Calendar section
     # Group activities by day
@@ -801,7 +802,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         col_center_x = x_pos + (col_width // 2)
         day_x = col_center_x - (day_width // 2)
         draw.text((day_x, current_y), day_name, fill=text_secondary, font=day_font)
-        current_y += day_label_size + 2
+        current_y += day_label_size + 8  # Increased from 2 to 8
         
         # Date (10)
         day_number = day.strftime('%d')
@@ -809,7 +810,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         date_width = bbox[2] - bbox[0]
         date_x = col_center_x - (date_width // 2)
         draw.text((date_x, current_y), day_number, fill=text_primary, font=day_font)
-        current_y += day_label_size + int(padding * 0.3)
+        current_y += day_label_size + int(padding * 1.2)  # Increased from 0.3 to 1.2
         
         # Activity icons for this day
         date_key = day.strftime('%Y-%m-%d')
@@ -827,7 +828,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                     # Center icon in column
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
-                    current_y += icon.height + 1
+                    current_y += icon.height + 6  # Increased from 1 to 6
                     
                     # Add distance below icon
                     distance_text = f"{distance_km:.1f} km"
@@ -835,7 +836,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                     distance_width = bbox[2] - bbox[0]
                     distance_x = col_center_x - (distance_width // 2)
                     draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
-                    current_y += duration_size + 1
+                    current_y += duration_size + 4  # Increased from 1 to 4
                     
                     # Add duration below distance
                     duration_text = format_duration(duration)
@@ -843,7 +844,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                     duration_width = bbox[2] - bbox[0]
                     duration_x = col_center_x - (duration_width // 2)
                     draw.text((duration_x, current_y), duration_text, fill=text_secondary, font=duration_font)
-                    current_y += duration_size + 3
+                    current_y += duration_size + 10  # Increased from 3 to 10
         else:
             # Show a dash for no activities
             dash_y = current_y + icon_size // 2
