@@ -61,7 +61,7 @@ class Template(BasePlugin):
                 after_date, period_label = get_current_week_start()
             else:
                 after_date = datetime.now() - timedelta(days=days_back)
-                period_label = f"{days_back}d"
+                period_label = f"Past {days_back} Days" if days_back != 1 else "Past Day"
 
             # Fetch activities from Strava
             activities = fetch_strava_activities(access_token, after_date)
@@ -123,9 +123,14 @@ class Template(BasePlugin):
             if refresh_token:
                 logger.info("Access token expired, attempting refresh")
                 try:
+                    # Get client credentials
+                    client_id = settings.get("strava_client_id")
+                    # Client secret comes from environment/API Keys
+                    client_secret = device_config.load_env_key("STRAVA_CLIENT_SECRET")
+                    
                     new_token = refresh_access_token(
-                        settings.get("strava_client_id"),
-                        settings.get("strava_client_secret"),
+                        client_id,
+                        client_secret,
                         refresh_token
                     )
                     
@@ -337,6 +342,7 @@ def group_activities_by_day(activities, start_date):
             # Determine activity type icon name
             sport_type = activity.get('sport_type') or activity.get('type', '')
             moving_time = activity.get('moving_time', 0) or 0
+            distance_meters = activity.get('distance', 0) or 0
             
             if sport_type in RUNNING_TYPES:
                 icon_name = 'Run'
@@ -347,10 +353,11 @@ def group_activities_by_day(activities, start_date):
             else:
                 continue  # Skip other activity types
             
-            # Add activity with duration info
+            # Add activity with duration and distance info
             days_dict[date_key].append({
                 'type': icon_name,
-                'duration': moving_time
+                'duration': moving_time,
+                'distance_km': meters_to_km(distance_meters)
             })
                 
         except Exception as e:
@@ -633,10 +640,11 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
         day_activities = activities_by_day.get(date_key, [])
         
         if day_activities:
-            # Stack icons vertically under the date with duration
+            # Stack icons vertically under the date with duration and distance
             for activity_data in day_activities[:3]:  # Max 3 activities per day
                 activity_type = activity_data['type']
                 duration = activity_data['duration']
+                distance_km = activity_data['distance_km']
                 
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
@@ -646,7 +654,15 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                     image.paste(icon, (icon_x, current_y), icon)
                     current_y += icon.height + 2
                     
-                    # Add duration below icon
+                    # Add distance below icon
+                    distance_text = f"{distance_km:.1f} km"
+                    bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
+                    distance_width = bbox[2] - bbox[0]
+                    distance_x = col_center_x - (distance_width // 2)
+                    draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
+                    current_y += duration_size + 1
+                    
+                    # Add duration below distance
                     duration_text = format_duration(duration)
                     bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
                     duration_width = bbox[2] - bbox[0]
@@ -754,9 +770,9 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             
             y_pos += icon_size + (tiny_size * 2) + int(padding * 0.8)
     
-    # Separator before calendar
+    # Separator before calendar with more spacing
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 0.7)
+    y_pos += int(padding * 1.2)
     
     # Calendar section
     # Group activities by day
@@ -801,10 +817,11 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         day_activities = activities_by_day.get(date_key, [])
         
         if day_activities:
-            # Stack icons vertically under the date with duration
+            # Stack icons vertically under the date with duration and distance
             for activity_data in day_activities[:2]:  # Max 2 activities per day in combined view
                 activity_type = activity_data['type']
                 duration = activity_data['duration']
+                distance_km = activity_data['distance_km']
                 
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
@@ -813,7 +830,15 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                     image.paste(icon, (icon_x, current_y), icon)
                     current_y += icon.height + 1
                     
-                    # Add duration below icon
+                    # Add distance below icon
+                    distance_text = f"{distance_km:.1f} km"
+                    bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
+                    distance_width = bbox[2] - bbox[0]
+                    distance_x = col_center_x - (distance_width // 2)
+                    draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
+                    current_y += duration_size + 1
+                    
+                    # Add duration below distance
                     duration_text = format_duration(duration)
                     bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
                     duration_width = bbox[2] - bbox[0]

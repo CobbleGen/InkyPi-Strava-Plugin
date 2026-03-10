@@ -1,19 +1,28 @@
 <!-- Strava API Credentials -->
 <div class="form-group">
     <label class="form-label">Strava API Setup</label>
-    <small class="form-text">
-        Get your credentials from <a href="https://www.strava.com/settings/api" target="_blank">Strava API Settings</a>
-    </small>
+    <div style="background: #f8f9fa; padding: 12px; border-radius: 4px; margin-bottom: 10px; border-left: 4px solid #007bff;">
+        <strong>Setup Instructions:</strong>
+        <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.9em;">
+            <li>Go to <a href="https://www.strava.com/settings/api" target="_blank">Strava API Settings</a></li>
+            <li>Create an application (or use an existing one)</li>
+            <li><strong>Important:</strong> Set <strong>Authorization Callback Domain</strong> to: <code>akz-inky.local</code> (or your Pi's hostname)</li>
+            <li>Copy your <strong>Client ID</strong> and paste it below</li>
+            <li>Copy your <strong>Client Secret</strong> and add it in the <strong>API Keys</strong> section of InkyPi with key name: <code>STRAVA_CLIENT_SECRET</code></li>
+        </ol>
+    </div>
 </div>
 
 <div class="form-group">
     <label for="strava_client_id" class="form-label">Client ID:</label>
     <input type="text" id="strava_client_id" name="strava_client_id" placeholder="12345" required class="form-input">
+    <small class="form-text">Your Strava API Client ID</small>
 </div>
 
 <div class="form-group">
-    <label for="strava_client_secret" class="form-label">Client Secret:</label>
-    <input type="text" id="strava_client_secret" name="strava_client_secret" placeholder="abc123..." required class="form-input">
+    <small class="form-text" style="color: #28a745;">
+        ✓ Client Secret is stored securely in API Keys section (STRAVA_CLIENT_SECRET)
+    </small>
 </div>
 
 <!-- Hidden fields for tokens -->
@@ -75,7 +84,6 @@
         // Load saved settings FIRST - before processing OAuth callback
         if (loadPluginSettings) {
             document.getElementById('strava_client_id').value = pluginSettings.strava_client_id || '';
-            document.getElementById('strava_client_secret').value = pluginSettings.strava_client_secret || '';
             document.getElementById('access_token').value = pluginSettings.access_token || '';
             document.getElementById('refresh_token').value = pluginSettings.refresh_token || '';
             document.getElementById('token_expires_at').value = pluginSettings.token_expires_at || '';
@@ -115,21 +123,14 @@
         // Authorize with Strava button
         authorizeBtn.addEventListener('click', () => {
             const clientId = document.getElementById('strava_client_id').value;
-            const clientSecret = document.getElementById('strava_client_secret').value;
             
             if (!clientId) {
                 alert('Please enter your Strava Client ID first');
                 return;
             }
             
-            if (!clientSecret) {
-                alert('Please enter your Strava Client Secret first');
-                return;
-            }
-            
-            // Store credentials temporarily in sessionStorage so they're available after OAuth redirect
+            // Store client ID temporarily in sessionStorage so it's available after OAuth redirect
             sessionStorage.setItem('strava_client_id', clientId);
-            sessionStorage.setItem('strava_client_secret', clientSecret);
             
             // Build authorization URL
             const redirectUri = window.location.href.split('?')[0]; // Current page without query params
@@ -142,9 +143,8 @@
         
         // Exchange authorization code for access/refresh tokens
         async function exchangeCodeForTokens(code) {
-            // Try to get credentials from form fields first, then sessionStorage
+            // Try to get Client ID from form field first, then sessionStorage
             let clientId = document.getElementById('strava_client_id').value;
-            let clientSecret = document.getElementById('strava_client_secret').value;
             
             if (!clientId) {
                 clientId = sessionStorage.getItem('strava_client_id');
@@ -153,15 +153,16 @@
                 }
             }
             
-            if (!clientSecret) {
-                clientSecret = sessionStorage.getItem('strava_client_secret');
-                if (clientSecret) {
-                    document.getElementById('strava_client_secret').value = clientSecret;
-                }
+            // Get Client Secret from plugin settings (loaded from ENV via API Keys)
+            const clientSecret = pluginSettings.strava_client_secret || '';
+            
+            if (!clientId) {
+                updateAuthStatus('error', 'Client ID required to complete authorization');
+                return;
             }
             
-            if (!clientId || !clientSecret) {
-                updateAuthStatus('error', 'Client ID and Secret required to complete authorization');
+            if (!clientSecret) {
+                updateAuthStatus('error', 'Client Secret not found. Please add STRAVA_CLIENT_SECRET to API Keys section.');
                 return;
             }
             
@@ -179,11 +180,7 @@
                         code: code,
                         grant_type: 'authorization_code'
                     })
-                });sessionStorage
-                sessionStorage.removeItem('strava_client_id');
-                sessionStorage.removeItem('strava_client_secret');
-                
-                // Clean up 
+                });
                 
                 if (!response.ok) {
                     throw new Error(`Token exchange failed: ${response.status}`);
@@ -197,6 +194,9 @@
                 document.getElementById('token_expires_at').value = data.expires_at;
                 
                 updateAuthStatus('success', 'Successfully authorized! Tokens received.');
+                
+                // Clean up sessionStorage
+                sessionStorage.removeItem('strava_client_id');
                 
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
