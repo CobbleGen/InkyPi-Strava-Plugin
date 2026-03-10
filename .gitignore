@@ -1,8 +1,8 @@
 # Test and development files
-plugin_template/test_*.py
-plugin_template/verify_token.py
-plugin_template/get_strava_token.py
-plugin_template/*.png
+strava_summary/test_*.py
+strava_summary/verify_token.py
+strava_summary/get_strava_token.py
+strava_summary/*.png
 
 # Python
 __pycache__/
