@@ -90,7 +90,7 @@ Compact summary stats at the top with a weekly calendar below - the best of both
 
 **"Authorization callback domain mismatch"**
 - Ensure your Strava app's callback domain matches your InkyPi URL
-- Common values: `localhost`, `inkypi.local`, or your Pi's IP address
+- Common values: `localhost`, `akz-inky.local`), or your Pi's IP address
 
 **No activities showing**
 - Check that you have activities in the selected time period
