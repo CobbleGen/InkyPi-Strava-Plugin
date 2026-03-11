@@ -45,8 +45,8 @@ inkypi install strava_summary https://github.com/CobbleGen/InkyPi-Strava-Plugin
 3. Fill in the form:
    - **Application Name**: "InkyPi Display" (or your choice)
    - **Category**: Choose something appropriate
-   - **Website**: Your InkyPi URL (`http://akz-inky.local/`) or `http://localhost`
-   - **Authorization Callback Domain**: Your InkyPi domain (e.g., `inkypi.local` or `192.168.1.x`)
+   - **Website**: Your InkyPi URL (`akz-inky.local`) 
+   - **Authorization Callback Domain**: Your InkyPi domain (`akz-inky.local`)
 4. Click **Create**
 5. Note your **Client ID** and **Client Secret**
 
