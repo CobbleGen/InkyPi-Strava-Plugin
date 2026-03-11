@@ -1,9 +1,3 @@
-# Test and development files
-strava_summary/test_*.py
-strava_summary/verify_token.py
-strava_summary/get_strava_token.py
-strava_summary/*.png
-
 # Python
 __pycache__/
 *.py[cod]

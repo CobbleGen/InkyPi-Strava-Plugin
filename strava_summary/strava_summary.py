@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 RUNNING_TYPES = {'Run', 'TrailRun', 'Treadmill'}
 CYCLING_TYPES = {'Ride', 'VirtualRide', 'EBikeRide', 'MountainBikeRide', 'GravelRide'}
 SWIMMING_TYPES = {'Swim'}
+STRENGTH_TYPES = {'WeightTraining', 'Workout', 'Crossfit'}
 
 
 class Template(BasePlugin):
@@ -58,10 +59,16 @@ class Template(BasePlugin):
             
             # Calculate date range based on mode
             if time_mode == "current_week":
-                after_date, period_label = get_current_week_start()
+                display_start_date, period_label = get_current_week_start()
+                # For API fetch, go back 1 second so "after" (exclusive) includes activities from Monday 00:00:00
+                after_date = display_start_date - timedelta(seconds=1)
             else:
                 # Include today in the range: if days_back=7, show past 6 days + today = 7 days total
-                after_date = datetime.now() - timedelta(days=days_back - 1)
+                # Calculate the start of the first day we want to show
+                display_start_date = datetime.now() - timedelta(days=days_back - 1)
+                display_start_date = display_start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+                # For API fetch, go back 1 second so "after" (exclusive) includes the full start day
+                after_date = display_start_date - timedelta(seconds=1)
                 period_label = f"Last {days_back} Days" if days_back != 1 else "Today"
 
             # Fetch activities from Strava
@@ -73,11 +80,11 @@ class Template(BasePlugin):
                 # Choose rendering mode
                 if display_mode == "calendar":
                     # Calendar view with daily activities
-                    render_calendar(draw, image, width, height, activities, after_date, period_label)
+                    render_calendar(draw, image, width, height, activities, display_start_date, period_label)
                 elif display_mode == "combined":
                     # Combined view: summary + calendar
                     stats = aggregate_activities(activities)
-                    render_combined(draw, image, width, height, stats, activities, after_date, period_label)
+                    render_combined(draw, image, width, height, stats, activities, display_start_date, period_label)
                 else:
                     # Summary view with aggregated totals
                     stats = aggregate_activities(activities)
@@ -274,6 +281,7 @@ def aggregate_activities(activities):
             - run_km, run_time_seconds
             - bike_km, bike_time_seconds
             - swim_km, swim_time_seconds
+            - strength_time_seconds
     """
     stats = {
         'total_km': 0.0,
@@ -284,6 +292,7 @@ def aggregate_activities(activities):
         'bike_time_seconds': 0,
         'swim_km': 0.0,
         'swim_time_seconds': 0,
+        'strength_time_seconds': 0,
     }
 
     for activity in activities:
@@ -306,6 +315,9 @@ def aggregate_activities(activities):
         elif sport_type in SWIMMING_TYPES:
             stats['swim_km'] += meters_to_km(distance_meters)
             stats['swim_time_seconds'] += moving_time
+        elif sport_type in STRENGTH_TYPES:
+            # Strength training doesn't have distance
+            stats['strength_time_seconds'] += moving_time
 
     return stats
 
@@ -350,14 +362,16 @@ def group_activities_by_day(activities, start_date):
                 icon_name = 'Bike'
             elif sport_type in SWIMMING_TYPES:
                 icon_name = 'Swim'
+            elif sport_type in STRENGTH_TYPES:
+                icon_name = 'Strength'
             else:
                 continue  # Skip other activity types
             
-            # Add activity with duration and distance info
+            # Add activity with duration and distance info (strength activities have no distance)
             days_dict[date_key].append({
                 'type': icon_name,
                 'duration': moving_time,
-                'distance_km': meters_to_km(distance_meters)
+                'distance_km': meters_to_km(distance_meters) if sport_type not in STRENGTH_TYPES else 0
             })
                 
         except Exception as e:
@@ -513,6 +527,8 @@ def render_stats(draw, width, height, stats, period_label):
         activities.append(("Bike", "RIDE", stats['bike_km'], stats['bike_time_seconds']))
     if stats['swim_km'] > 0:
         activities.append(("Swim", "SWIM", stats['swim_km'], stats['swim_time_seconds']))
+    if stats['strength_time_seconds'] > 0:
+        activities.append(("Strength", "STRENGTH", 0, stats['strength_time_seconds']))
     
     if activities:
         # Draw separator line
@@ -545,16 +561,17 @@ def render_stats(draw, width, height, stats, period_label):
                 draw.text((x_pos, current_y), label_text, fill=text_secondary, font=label_font)
                 current_y += tiny_label_size + 10  # Increased from 5 to 10
             
-            # Distance
-            distance = f"{km:.1f}"
-            draw.text((x_pos, current_y), distance, fill=text_primary, font=number_font)
-            
-            # Unit
-            bbox = draw.textbbox((0, 0), distance, font=number_font)
-            dist_width = bbox[2] - bbox[0]
-            draw.text((x_pos + dist_width + 3, current_y + 3), "km", 
-                     fill=text_secondary, font=label_font)
-            current_y += number_font.size + 6  # Increased from 3 to 6
+            # Distance (skip for activities with no distance like strength training)
+            if km > 0:
+                distance = f"{km:.1f}"
+                draw.text((x_pos, current_y), distance, fill=text_primary, font=number_font)
+                
+                # Unit
+                bbox = draw.textbbox((0, 0), distance, font=number_font)
+                dist_width = bbox[2] - bbox[0]
+                draw.text((x_pos + dist_width + 3, current_y + 3), "km", 
+                         fill=text_secondary, font=label_font)
+                current_y += number_font.size + 6  # Increased from 3 to 6
             
             # Time
             time_str = format_duration(seconds)
@@ -654,15 +671,16 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                     image.paste(icon, (icon_x, current_y), icon)
                     current_y += icon.height + 6  # Increased from 2 to 6
                     
-                    # Add distance below icon
-                    distance_text = f"{distance_km:.1f} km"
-                    bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
-                    distance_width = bbox[2] - bbox[0]
-                    distance_x = col_center_x - (distance_width // 2)
-                    draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
-                    current_y += duration_size + 4  # Increased from 1 to 4
+                    # Add distance below icon (skip for activities with no distance like strength)
+                    if distance_km > 0:
+                        distance_text = f"{distance_km:.1f} km"
+                        bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
+                        distance_width = bbox[2] - bbox[0]
+                        distance_x = col_center_x - (distance_width // 2)
+                        draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
+                        current_y += duration_size + 4  # Increased from 1 to 4
                     
-                    # Add duration below distance
+                    # Add duration below distance (or below icon for strength)
                     duration_text = format_duration(duration)
                     bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
                     duration_width = bbox[2] - bbox[0]
@@ -741,6 +759,8 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             activities_summary.append(("Bike", stats['bike_km'], stats['bike_time_seconds']))
         if stats['swim_km'] > 0:
             activities_summary.append(("Swim", stats['swim_km'], stats['swim_time_seconds']))
+        if stats['strength_time_seconds'] > 0:
+            activities_summary.append(("Strength", 0, stats['strength_time_seconds']))
         
         if activities_summary:
             icon_size = int(tiny_size * 1.8)
@@ -759,10 +779,11 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                     image.paste(icon, (x_offset, current_y), icon)
                     current_y += icon.height + 4
                 
-                # Distance with unit
-                dist_text = f"{km:.1f} km"
-                draw.text((x_offset, current_y), dist_text, fill=text_primary, font=tiny_font)
-                current_y += tiny_size + 2
+                # Distance with unit (skip for activities with no distance like strength)
+                if km > 0:
+                    dist_text = f"{km:.1f} km"
+                    draw.text((x_offset, current_y), dist_text, fill=text_primary, font=tiny_font)
+                    current_y += tiny_size + 2
                 
                 # Time
                 time_text = format_duration(seconds)
@@ -830,15 +851,16 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                     image.paste(icon, (icon_x, current_y), icon)
                     current_y += icon.height + 6  # Increased from 1 to 6
                     
-                    # Add distance below icon
-                    distance_text = f"{distance_km:.1f} km"
-                    bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
-                    distance_width = bbox[2] - bbox[0]
-                    distance_x = col_center_x - (distance_width // 2)
-                    draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
-                    current_y += duration_size + 4  # Increased from 1 to 4
+                    # Add distance below icon (skip for activities with no distance like strength)
+                    if distance_km > 0:
+                        distance_text = f"{distance_km:.1f} km"
+                        bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
+                        distance_width = bbox[2] - bbox[0]
+                        distance_x = col_center_x - (distance_width // 2)
+                        draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
+                        current_y += duration_size + 4  # Increased from 1 to 4
                     
-                    # Add duration below distance
+                    # Add duration below distance (or below icon for strength)
                     duration_text = format_duration(duration)
                     bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
                     duration_width = bbox[2] - bbox[0]
