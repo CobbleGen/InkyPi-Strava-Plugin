@@ -481,7 +481,7 @@ def render_stats(draw, width, height, stats, period_label):
     number_font = get_font("Jost", small_number_size)
     label_font = get_font("Jost", tiny_label_size)
     
-    padding = int(width * 0.05)  # Increased from 0.04 to 0.05
+    padding = int(width * 0.05)
     y_pos = padding * 2  # Start lower
     
     # Load and place Strava logo in top right
@@ -493,15 +493,19 @@ def render_stats(draw, width, height, stats, period_label):
     
     # Header with period
     draw.text((padding, y_pos), period_label.upper(), fill=strava_accent, font=header_font)
-    y_pos += header_size + int(padding * 1.0)  # Increased from 0.3 to 1.0
+    y_pos += header_size + int(padding * 0.4) 
     
     # Draw a subtle line under header
     line_y = y_pos
     draw.line([(padding, line_y), (width - padding, line_y)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 1.8)  # Increased from 0.8 to 1.8
+    y_pos += int(padding * 1.8) 
     
     # Main stats section - emphasize total with big numbers
     if stats['total_km'] > 0:
+        # "Total" label
+        draw.text((padding, y_pos), "Total", fill=text_secondary, font=label_font)
+        y_pos += tiny_label_size + int(padding * 0.4)
+        
         # Big total distance
         distance_text = f"{stats['total_km']:.1f}"
         draw.text((padding, y_pos), distance_text, fill=text_primary, font=big_font)
@@ -746,6 +750,10 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     
     # Summary stats - more spacious layout
     if stats['total_km'] > 0:
+        # "Total" label
+        draw.text((padding, y_pos), "Total", fill=text_secondary, font=tiny_font)
+        y_pos += tiny_size + int(padding * 0.4)
+        
         # Total distance and time on one line
         total_text = f"{stats['total_km']:.1f} km • {format_duration(stats['total_time_seconds'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)

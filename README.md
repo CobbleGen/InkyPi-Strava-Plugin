@@ -1,7 +1,7 @@
 # InkyPi Strava Summary Plugin
 
-A beautiful, feature-rich plugin for [InkyPi](https://github.com/fatihak/InkyPi) that displays your Strava activity summaries on e-ink displays.
-
+A feature-rich plugin for [InkyPi](https://github.com/fatihak/InkyPi) that displays your Strava activity summaries on e-ink displays.
+(Work in Progress)
 ## Features
 
 ✨ **Three Display Modes:**
@@ -13,6 +13,7 @@ A beautiful, feature-rich plugin for [InkyPi](https://github.com/fatihak/InkyPi)
 - Running (Run, TrailRun, Treadmill)
 - Cycling (Ride, VirtualRide, MountainBikeRide, GravelRide, EBikeRide)
 - Swimming (Swim)
+- Strength (WeightTraining, Workout, Crossfit)
 
 📅 **Flexible Time Ranges:**
 - Last N days (rolling window)
@@ -44,7 +45,7 @@ inkypi install strava_summary https://github.com/CobbleGen/InkyPi-Strava-Plugin
 3. Fill in the form:
    - **Application Name**: "InkyPi Display" (or your choice)
    - **Category**: Choose something appropriate
-   - **Website**: Your InkyPi URL or `http://localhost`
+   - **Website**: Your InkyPi URL (`http://akz-inky.local/`) or `http://localhost`
    - **Authorization Callback Domain**: Your InkyPi domain (e.g., `inkypi.local` or `192.168.1.x`)
 4. Click **Create**
 5. Note your **Client ID** and **Client Secret**

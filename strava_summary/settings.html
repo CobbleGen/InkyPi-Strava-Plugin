@@ -230,20 +230,25 @@
             // Use high-contrast colors with borders
             if (status === 'success') {
                 authStatus.style.backgroundColor = '#ffffff';
-                authStatus.style.color = '#28a745';
                 authStatus.style.border = '2px solid #28a745';
+                authStatusText.style.color = '#28a745';
+                authStatusText.style.fontWeight = 'bold';
             } else if (status === 'error') {
                 authStatus.style.backgroundColor = '#ffffff';
-                authStatus.style.color = '#dc3545';
                 authStatus.style.border = '2px solid #dc3545';
+                authStatusText.style.color = '#dc3545';
+                authStatusText.style.fontWeight = 'bold';
             } else if (status === 'pending') {
                 authStatus.style.backgroundColor = '#ffffff';
-                authStatus.style.color = '#ffc107';
                 authStatus.style.border = '2px solid #ffc107';
+                authStatusText.style.color = '#856404';
+                authStatusText.style.fontWeight = 'bold';
             } else {
-                authStatus.style.backgroundColor = '#f8f9fa';
-                authStatus.style.color = '#333333';
-                authStatus.style.border = '1px solid #dee2e6';
+                // Default state: Not authorized - dark text on white with gray border
+                authStatus.style.backgroundColor = '#ffffff';
+                authStatus.style.border = '2px solid #6c757d';
+                authStatusText.style.color = '#000000';
+                authStatusText.style.fontWeight = 'normal';
             }
         }
         
