@@ -38,7 +38,7 @@ inkypi install strava_summary https://github.com/CobbleGen/InkyPi-Strava-Plugin
 
 ## Setup
 
-### Step 1: Create a Strava API Application
+### Step 1: Create a Strava API Application (Free)
 
 1. Go to [https://www.strava.com/settings/api](https://www.strava.com/settings/api)
 2. Click **"Create an App"**
