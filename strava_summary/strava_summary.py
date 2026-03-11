@@ -498,7 +498,7 @@ def render_stats(draw, width, height, stats, period_label):
     # Draw a subtle line under header
     line_y = y_pos
     draw.line([(padding, line_y), (width - padding, line_y)], fill="#CCCCCC", width=2)
-    y_pos += int(padding * 1.8) 
+    y_pos += int(padding ) 
     
     # Main stats section - emphasize total with big numbers
     if stats['total_km'] > 0:
@@ -730,8 +730,8 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     day_font = get_font("Jost", day_label_size)
     duration_font = get_font("Jost", duration_size)
     
-    padding = int(width * 0.05)  # Increased from 0.03 to 0.05
-    y_pos = padding * 2  # Start lower
+    padding = int(width * 0.05) 
+    y_pos = padding * 2  
     
     # Load and place Strava logo in top right
     logo_height = int(header_size * 1.2)
@@ -742,11 +742,11 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     
     # Header
     draw.text((padding, y_pos), period_label.upper(), fill=text_primary, font=header_font)
-    y_pos += header_size + int(padding * 1.2)  # Increased from 0.4 to 1.2
+    y_pos += header_size + int(padding * 0.5) 
     
     # Separator
     draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=1)
-    y_pos += int(padding * 1.8)  # Increased from 0.8 to 1.8
+    y_pos += int(padding * 0.5) 
     
     # Summary stats - more spacious layout
     if stats['total_km'] > 0:
@@ -771,7 +771,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             activities_summary.append(("Strength", 0, stats['strength_time_seconds']))
         
         if activities_summary:
-            icon_size = int(tiny_size * 1.8)
+            icon_size = int(tiny_size * 1)
             
             # Calculate spacing to distribute activities evenly
             available_width = width - (2 * padding)
