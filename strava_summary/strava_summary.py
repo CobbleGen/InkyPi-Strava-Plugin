@@ -56,6 +56,7 @@ class Template(BasePlugin):
             display_mode = settings.get("display_mode", "summary")
             time_mode = settings.get("time_mode", "rolling")
             days_back = int(settings.get("days_back", 7))
+            time_type = settings.get("time_type", "moving_time")  # 'moving_time' or 'elapsed_time'
             
             # Calculate date range based on mode
             if time_mode == "current_week":
@@ -77,17 +78,18 @@ class Template(BasePlugin):
             if not activities:
                 render_message(draw, width, height, "No activities found", period_label)
             else:
+                # Aggregate activities using selected time type
+                stats = aggregate_activities(activities, time_type)
+                
                 # Choose rendering mode
                 if display_mode == "calendar":
                     # Calendar view with daily activities
-                    render_calendar(draw, image, width, height, activities, display_start_date, period_label)
+                    render_calendar(draw, image, width, height, activities, display_start_date, period_label, time_type)
                 elif display_mode == "combined":
                     # Combined view: summary + calendar
-                    stats = aggregate_activities(activities)
-                    render_combined(draw, image, width, height, stats, activities, display_start_date, period_label)
+                    render_combined(draw, image, width, height, stats, activities, display_start_date, period_label, time_type)
                 else:
                     # Summary view with aggregated totals
-                    stats = aggregate_activities(activities)
                     render_stats(draw, width, height, stats, period_label)
 
         except Exception as e:
@@ -268,12 +270,13 @@ def refresh_access_token(client_id, client_secret, refresh_token):
 # AGGREGATION LOGIC
 # ============================================================================
 
-def aggregate_activities(activities):
+def aggregate_activities(activities, time_field='moving_time'):
     """
     Aggregate activity data into sport-specific and overall totals.
 
     Args:
         activities (list): List of Strava activity dictionaries
+        time_field (str): Which time field to use - 'moving_time' or 'elapsed_time'
 
     Returns:
         dict: Aggregated statistics with keys:
@@ -298,37 +301,38 @@ def aggregate_activities(activities):
     for activity in activities:
         # Safely extract fields (handle missing data)
         distance_meters = activity.get('distance', 0) or 0
-        moving_time = activity.get('moving_time', 0) or 0
+        activity_time = activity.get(time_field, 0) or 0  # Use selected time field
         sport_type = activity.get('sport_type') or activity.get('type', '')
 
         # Add to overall totals
         stats['total_km'] += meters_to_km(distance_meters)
-        stats['total_time_seconds'] += moving_time
+        stats['total_time_seconds'] += activity_time
 
         # Add to sport-specific totals
         if sport_type in RUNNING_TYPES:
             stats['run_km'] += meters_to_km(distance_meters)
-            stats['run_time_seconds'] += moving_time
+            stats['run_time_seconds'] += activity_time
         elif sport_type in CYCLING_TYPES:
             stats['bike_km'] += meters_to_km(distance_meters)
-            stats['bike_time_seconds'] += moving_time
+            stats['bike_time_seconds'] += activity_time
         elif sport_type in SWIMMING_TYPES:
             stats['swim_km'] += meters_to_km(distance_meters)
-            stats['swim_time_seconds'] += moving_time
+            stats['swim_time_seconds'] += activity_time
         elif sport_type in STRENGTH_TYPES:
             # Strength training doesn't have distance
-            stats['strength_time_seconds'] += moving_time
+            stats['strength_time_seconds'] += activity_time
 
     return stats
 
 
-def group_activities_by_day(activities, start_date):
+def group_activities_by_day(activities, start_date, time_field='moving_time'):
     """
     Group activities by day for calendar view.
     
     Args:
         activities (list): List of Strava activity dictionaries
         start_date (datetime): Start date for the period
+        time_field (str): Which time field to use - 'moving_time' or 'elapsed_time'
         
     Returns:
         dict: Dictionary mapping date strings (YYYY-MM-DD) to lists of activity dicts
@@ -353,7 +357,7 @@ def group_activities_by_day(activities, start_date):
             
             # Determine activity type icon name
             sport_type = activity.get('sport_type') or activity.get('type', '')
-            moving_time = activity.get('moving_time', 0) or 0
+            activity_time = activity.get(time_field, 0) or 0  # Use selected time field
             distance_meters = activity.get('distance', 0) or 0
             
             if sport_type in RUNNING_TYPES:
@@ -370,7 +374,7 @@ def group_activities_by_day(activities, start_date):
             # Add activity with duration and distance info (strength activities have no distance)
             days_dict[date_key].append({
                 'type': icon_name,
-                'duration': moving_time,
+                'duration': activity_time,
                 'distance_km': meters_to_km(distance_meters) if sport_type not in STRENGTH_TYPES else 0
             })
                 
@@ -582,7 +586,7 @@ def render_stats(draw, width, height, stats, period_label):
             draw.text((x_pos, current_y), time_str, fill=text_secondary, font=label_font)
 
 
-def render_calendar(draw, image, width, height, activities, start_date, period_label):
+def render_calendar(draw, image, width, height, activities, start_date, period_label, time_field='moving_time'):
     """
     Render a calendar view showing daily activities with icons and durations.
     
@@ -594,6 +598,7 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
         activities (list): List of activity dictionaries from Strava
         start_date (datetime): Start date for the calendar
         period_label (str): Label for the time period
+        time_field (str): Which time field to use - 'moving_time' or 'elapsed_time'
     """
     text_primary = "black"
     text_secondary = "#666666"
@@ -700,7 +705,7 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                      fill="#CCCCCC", width=2)
 
 
-def render_combined(draw, image, width, height, stats, activities, start_date, period_label):
+def render_combined(draw, image, width, height, stats, activities, start_date, period_label, time_field='moving_time'):
     """
     Render combined view with summary stats at top and calendar below.
     
@@ -713,6 +718,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         activities (list): List of activity dictionaries from Strava
         start_date (datetime): Start date for the calendar
         period_label (str): Label for the time period
+        time_field (str): Which time field to use - 'moving_time' or 'elapsed_time'
     """
     text_primary = "black"
     text_secondary = "#666666"
@@ -771,7 +777,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             activities_summary.append(("Strength", 0, stats['strength_time_seconds']))
         
         if activities_summary:
-            icon_size = int(tiny_size * 1)
+            icon_size = int(tiny_size * 1.8)
             
             # Calculate spacing to distribute activities evenly
             available_width = width - (2 * padding)
@@ -805,7 +811,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     
     # Calendar section
     # Group activities by day
-    activities_by_day = group_activities_by_day(activities, start_date)
+    activities_by_day = group_activities_by_day(activities, start_date, time_field)
     
     # Generate 7 days
     days = []
