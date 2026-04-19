@@ -55,7 +55,8 @@ class Template(BasePlugin):
             # Load configuration
             display_mode = settings.get("display_mode", "summary")
             time_mode = settings.get("time_mode", "rolling")
-            days_back = int(settings.get("days_back", 7))
+            days_back_value = settings.get("days_back", 7)
+            days_back = int(days_back_value) if days_back_value not in ["", None] else 7
             time_type = settings.get("time_type", "moving_time")  # 'moving_time' or 'elapsed_time'
             
             # Calculate date range based on mode
@@ -125,7 +126,11 @@ class Template(BasePlugin):
         if access_token and expires_at:
             # Check if token is expired or about to expire (within 5 minutes)
             now = int(datetime.now().timestamp())
-            if int(expires_at) > now + 300:
+            try:
+                expires_at_int = int(expires_at) if expires_at not in ["", None] else 0
+            except (ValueError, TypeError):
+                expires_at_int = 0
+            if expires_at_int > now + 300:
                 logger.debug("Using valid access token from settings")
                 return access_token
             
