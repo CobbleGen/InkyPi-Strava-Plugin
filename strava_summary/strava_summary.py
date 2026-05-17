@@ -216,7 +216,14 @@ def fetch_strava_activities(access_token, after_date):
     }
 
     url = "https://www.strava.com/api/v3/athlete/activities"
-    response = requests.get(url, headers=headers, params=params, timeout=10)
+    try:
+        response = requests.get(url, headers=headers, params=params, timeout=(5, 10))
+    except requests.exceptions.Timeout:
+        raise Exception("Strava API request timed out. Check network connection.")
+    except requests.exceptions.ConnectionError:
+        raise Exception("Could not connect to Strava. Check network connection.")
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Network error: {e}")
 
     if response.status_code != 200:
         error_detail = ""
@@ -254,17 +261,24 @@ def refresh_access_token(client_id, client_secret, refresh_token):
     if not all([client_id, client_secret, refresh_token]):
         raise Exception("Client credentials and refresh token required")
     
-    response = requests.post(
-        "https://www.strava.com/oauth/token",
-        data={
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-            "grant_type": "refresh_token"
-        },
-        timeout=10
-    )
-    
+    try:
+        response = requests.post(
+            "https://www.strava.com/oauth/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token"
+            },
+            timeout=(5, 10)
+        )
+    except requests.exceptions.Timeout:
+        raise Exception("Token refresh timed out. Check network connection.")
+    except requests.exceptions.ConnectionError:
+        raise Exception("Could not connect to Strava for token refresh. Check network.")
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Network error during token refresh: {e}")
+
     if response.status_code != 200:
         raise Exception(f"Token refresh failed: {response.status_code}")
     
@@ -650,7 +664,25 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
     col_width = (width - 2 * padding) // 7
     icon_size = int(col_width * 0.5)  # Icons sized to fit in column
     icon_size = min(icon_size, int(height * 0.15))  # Cap at 15% of height
-    
+
+    # Dynamically scale icon and gaps so the busiest day's activities all fit vertically
+    max_per_day = max((len(v) for v in activities_by_day.values()), default=1)
+    max_shown = min(max_per_day, 3)
+
+    # y where activity content starts in each column (after day-name + date rows)
+    activity_start_y = y_pos + (day_label_size + 8) + (date_size + int(padding * 1.5))
+    available_height = max(1, height - activity_start_y - int(padding * 0.5))
+
+    # Shrink icon to leave room for text lines (distance + duration) across all slots
+    per_activity_budget = max(1, available_height // max_shown)
+    icon_size = min(icon_size, max(12, per_activity_budget - duration_size * 2 - 8))
+
+    # Distribute leftover space evenly as gaps; keep minimum 1-2 px
+    leftover = per_activity_budget - icon_size - duration_size * 2
+    gap_icon = max(2, leftover // 3)
+    gap_text = max(1, leftover // 6)
+    gap_activity = max(2, leftover // 3)
+
     # Render each day column
     for i, day in enumerate(days):
         x_pos = padding + (i * col_width)
@@ -659,12 +691,12 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
         # Day of week (Mon, Tue, etc.)
         day_name = day.strftime('%a').upper()
         draw.text((x_pos, current_y), day_name, fill=text_secondary, font=day_font)
-        current_y += day_label_size + 8  # Increased from 3 to 8
+        current_y += day_label_size + 8
         
-        # Date (10)
+        # Date number
         day_number = day.strftime('%d')
         draw.text((x_pos, current_y), day_number, fill=text_primary, font=date_font)
-        current_y += date_size + int(padding * 1.5)  # Increased from 0.5 to 1.5
+        current_y += date_size + int(padding * 1.5)
         
         # Activity icons for this day
         date_key = day.strftime('%Y-%m-%d')
@@ -679,30 +711,30 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                 
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
-                    # Center icon in column (calculate center of column)
+                    # Center icon in column
                     col_center_x = x_pos + (col_width // 2)
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
-                    current_y += icon.height + 6  # Increased from 2 to 6
+                    current_y += icon.height + gap_icon
                     
-                    # Add distance below icon (skip for activities with no distance like strength)
+                    # Distance below icon (skip for strength which has no distance)
                     if distance_km > 0:
                         distance_text = f"{distance_km:.1f} km"
                         bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
                         distance_width = bbox[2] - bbox[0]
                         distance_x = col_center_x - (distance_width // 2)
                         draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
-                        current_y += duration_size + 4  # Increased from 1 to 4
+                        current_y += duration_size + gap_text
                     
-                    # Add duration below distance (or below icon for strength)
+                    # Duration below distance (or below icon for strength)
                     duration_text = format_duration(duration)
                     bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
                     duration_width = bbox[2] - bbox[0]
                     duration_x = col_center_x - (duration_width // 2)
                     draw.text((duration_x, current_y), duration_text, fill=text_secondary, font=duration_font)
-                    current_y += duration_size + 15  # Increased from 5 to 15
+                    current_y += duration_size + gap_activity
         else:
-            # Show a dot or dash for no activities
+            # Show a dash for no activities
             dash_y = current_y + icon_size // 2
             col_center_x = x_pos + (col_width // 2)
             draw.line([(col_center_x - 5, dash_y), 
@@ -766,7 +798,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         y_pos += tiny_size + int(padding * 0.4)
         
         # Total distance and time on one line
-        total_text = f"{stats['total_km']:.1f} km • {format_duration(stats['total_time_seconds'])}"
+        total_text = f"{stats['total_km']:.1f} km \u2022 {format_duration(stats['total_time_seconds'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)
         y_pos += stat_size + int(padding * 1.5)  # Increased from 0.6 to 1.5
         
@@ -828,69 +860,80 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     col_width = (width - 2 * padding) // 7
     icon_size = int(col_width * 0.45)
     icon_size = min(icon_size, int((height - y_pos - padding) * 0.25))  # Cap based on remaining space
-    
+
+    # Dynamically scale icon and gaps so the busiest day's activities all fit vertically
+    max_per_day = max((len(v) for v in activities_by_day.values()), default=1)
+    max_shown = min(max_per_day, 3)
+
+    # y where activity content starts in each column (after day-name + date rows)
+    activity_start_y = y_pos + (day_label_size + 8) + (day_label_size + int(padding * 1.2))
+    available_height = max(1, height - activity_start_y - int(padding * 0.5))
+
+    per_activity_budget = max(1, available_height // max_shown)
+    icon_size = min(icon_size, max(10, per_activity_budget - duration_size * 2 - 8))
+
+    leftover = per_activity_budget - icon_size - duration_size * 2
+    gap_icon = max(2, leftover // 3)
+    gap_text = max(1, leftover // 6)
+    gap_activity = max(2, leftover // 3)
+
     # Render each day column
     for i, day in enumerate(days):
         x_pos = padding + (i * col_width)
         current_y = y_pos
-        
-        # Day of week (Mon, Tue, etc.)
-        day_name = day.strftime('%a').upper()
-        # Center day name in column
-        bbox = draw.textbbox((0, 0), day_name, font=day_font)
-        day_width = bbox[2] - bbox[0]
         col_center_x = x_pos + (col_width // 2)
-        day_x = col_center_x - (day_width // 2)
+
+        # Day of week (Mon, Tue, etc.) - centered
+        day_name = day.strftime('%a').upper()
+        bbox = draw.textbbox((0, 0), day_name, font=day_font)
+        day_x = col_center_x - ((bbox[2] - bbox[0]) // 2)
         draw.text((day_x, current_y), day_name, fill=text_secondary, font=day_font)
-        current_y += day_label_size + 8  # Increased from 2 to 8
-        
-        # Date (10)
+        current_y += day_label_size + 8
+
+        # Date number - centered
         day_number = day.strftime('%d')
         bbox = draw.textbbox((0, 0), day_number, font=day_font)
-        date_width = bbox[2] - bbox[0]
-        date_x = col_center_x - (date_width // 2)
+        date_x = col_center_x - ((bbox[2] - bbox[0]) // 2)
         draw.text((date_x, current_y), day_number, fill=text_primary, font=day_font)
-        current_y += day_label_size + int(padding * 1.2)  # Increased from 0.3 to 1.2
-        
+        current_y += day_label_size + int(padding * 1.2)
+
         # Activity icons for this day
         date_key = day.strftime('%Y-%m-%d')
         day_activities = activities_by_day.get(date_key, [])
-        
+
         if day_activities:
-            # Stack icons vertically under the date with duration and distance
-            for activity_data in day_activities[:2]:  # Max 2 activities per day in combined view
+            # Stack icons vertically under the date with distance and duration
+            for activity_data in day_activities[:3]:  # Max 3 activities per day
                 activity_type = activity_data['type']
                 duration = activity_data['duration']
                 distance_km = activity_data['distance_km']
-                
+
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
                     # Center icon in column
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
-                    current_y += icon.height + 6  # Increased from 1 to 6
-                    
-                    # Add distance below icon (skip for activities with no distance like strength)
+                    current_y += icon.height + gap_icon
+
+                    # Distance below icon (skip for strength which has no distance)
                     if distance_km > 0:
                         distance_text = f"{distance_km:.1f} km"
                         bbox = draw.textbbox((0, 0), distance_text, font=duration_font)
-                        distance_width = bbox[2] - bbox[0]
-                        distance_x = col_center_x - (distance_width // 2)
+                        distance_x = col_center_x - ((bbox[2] - bbox[0]) // 2)
                         draw.text((distance_x, current_y), distance_text, fill=text_primary, font=duration_font)
-                        current_y += duration_size + 4  # Increased from 1 to 4
-                    
-                    # Add duration below distance (or below icon for strength)
+                        current_y += duration_size + gap_text
+
+                    # Duration below distance (or below icon for strength)
                     duration_text = format_duration(duration)
                     bbox = draw.textbbox((0, 0), duration_text, font=duration_font)
-                    duration_width = bbox[2] - bbox[0]
-                    duration_x = col_center_x - (duration_width // 2)
+                    duration_x = col_center_x - ((bbox[2] - bbox[0]) // 2)
                     draw.text((duration_x, current_y), duration_text, fill=text_secondary, font=duration_font)
-                    current_y += duration_size + 10  # Increased from 3 to 10
+                    current_y += duration_size + gap_activity
         else:
             # Show a dash for no activities
             dash_y = current_y + icon_size // 2
-            draw.line([(col_center_x - 4, dash_y), 
-                      (col_center_x + 4, dash_y)], 
+            draw.line([(col_center_x - 4, dash_y),
+                      (col_center_x + 4, dash_y)],
                      fill="#CCCCCC", width=2)
 
 
