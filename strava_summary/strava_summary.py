@@ -679,7 +679,7 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
 
     # Distribute leftover space evenly as gaps; keep minimum 1-2 px
     leftover = per_activity_budget - icon_size - duration_size * 2
-    gap_icon = max(2, leftover // 3)
+    gap_icon = max(2, min(4, leftover // 3))
     gap_text = max(1, leftover // 6)
     gap_activity = max(2, leftover // 3)
 
@@ -873,7 +873,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
     icon_size = min(icon_size, max(10, per_activity_budget - duration_size * 2 - 8))
 
     leftover = per_activity_budget - icon_size - duration_size * 2
-    gap_icon = max(2, leftover // 3)
+    gap_icon = max(2, min(4, leftover // 3))
     gap_text = max(1, leftover // 6)
     gap_activity = max(2, leftover // 3)
 
