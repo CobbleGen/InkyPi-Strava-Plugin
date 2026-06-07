@@ -9,11 +9,22 @@ from datetime import datetime, timedelta
 logger = logging.getLogger(__name__)
 
 
+# Strava API base URL.
+# NOTE: Strava is changing the base URL to https://www.api-v3.strava.com,
+# available from January 4, 2027. Update STRAVA_API_BASE_URL at that point.
+STRAVA_API_BASE_URL = "https://www.strava.com/api/v3"
+
 # Activity type groupings for sport-specific totals
 RUNNING_TYPES = {'Run', 'TrailRun', 'Treadmill'}
 CYCLING_TYPES = {'Ride', 'VirtualRide', 'EBikeRide', 'MountainBikeRide', 'GravelRide'}
 SWIMMING_TYPES = {'Swim'}
-STRENGTH_TYPES = {'WeightTraining', 'Workout', 'Crossfit'}
+# Includes general workout types and sports added in the April 2026 API update
+# (Basketball, Cricket, Dance, Padel, PhysicalTherapy, Volleyball) which have no
+# dedicated icon and are displayed using the Strength icon.
+STRENGTH_TYPES = {
+    'WeightTraining', 'Workout', 'Crossfit',
+    'Basketball', 'Cricket', 'Dance', 'Padel', 'PhysicalTherapy', 'Volleyball',
+}
 
 
 class Template(BasePlugin):
@@ -215,7 +226,7 @@ def fetch_strava_activities(access_token, after_date):
         "per_page": 100  # Fetch up to 100 activities (can be extended with pagination)
     }
 
-    url = "https://www.strava.com/api/v3/athlete/activities"
+    url = f"{STRAVA_API_BASE_URL}/athlete/activities"
     try:
         response = requests.get(url, headers=headers, params=params, timeout=(5, 10))
     except requests.exceptions.Timeout:

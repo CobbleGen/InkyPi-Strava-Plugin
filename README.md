@@ -96,6 +96,33 @@ Compact summary stats at the top with a weekly calendar below - the best of both
 - Check that you have activities in the selected time period
 - Verify the time range settings (rolling vs. current week)
 
+## Local Preview
+
+You can generate a preview image on your computer without needing the InkyPi hardware.
+
+**Requirements:** Python 3 + `pip install pillow requests`
+
+1. Create a `.env` file in the repo root (already gitignored):
+   ```
+   STRAVA_ACCESS_TOKEN=your_access_token_here
+   ```
+
+2. Run the preview script:
+   ```bash
+   # Calendar view (default)
+   python preview.py
+
+   # Other modes / options
+   python preview.py --mode summary
+   python preview.py --mode combined
+   python preview.py --week               # current week instead of rolling days
+   python preview.py --days 14            # last 14 days
+   python preview.py --width 800 --height 480
+   python preview.py --output my_preview.png --no-show
+   ```
+
+The image is saved as `preview.png` and opens automatically in your default image viewer.
+
 ## Activity Types
 
 The plugin tracks these activity types:
@@ -103,8 +130,9 @@ The plugin tracks these activity types:
 **Running**: Run, TrailRun, Treadmill  
 **Cycling**: Ride, VirtualRide, EBikeRide, MountainBikeRide, GravelRide  
 **Swimming**: Swim  
+**Strength / Other**: WeightTraining, Workout, Crossfit, Basketball, Cricket, Dance, Padel, PhysicalTherapy, Volleyball  
 
-Other activity types are included in totals but not shown in sport-specific breakdowns.
+Other activity types are included in overall totals but not shown in sport-specific breakdowns.
 
 ## Technical Details
 
