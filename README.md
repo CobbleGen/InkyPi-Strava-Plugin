@@ -102,10 +102,33 @@ You can generate a preview image on your computer without needing the InkyPi har
 
 **Requirements:** Python 3 + `pip install pillow requests`
 
-1. Create a `.env` file in the repo root (already gitignored):
+1. Create a `.env` file in the repo root (already gitignored). **Recommended — auto-refresh** so the token never expires:
+   ```
+   STRAVA_CLIENT_ID=your_client_id
+   STRAVA_CLIENT_SECRET=your_client_secret
+   STRAVA_REFRESH_TOKEN=your_refresh_token
+   ```
+   The script mints a fresh access token on each run and caches it back to `.env`.
+
+   Get a refresh token (with `activity:read_all` scope) via the one-time OAuth flow:
+   - Authorize in your browser (replace `CLIENT_ID`):
+     ```
+     https://www.strava.com/oauth/authorize?client_id=CLIENT_ID&response_type=code&redirect_uri=http://localhost&approval_prompt=force&scope=activity:read_all
+     ```
+   - After approving, copy the `code` value from the redirected `http://localhost/?...&code=XXXX&...` URL, then exchange it:
+     ```bash
+     curl -X POST https://www.strava.com/oauth/token \
+       -d client_id=CLIENT_ID -d client_secret=CLIENT_SECRET \
+       -d code=XXXX -d grant_type=authorization_code
+     ```
+   - Copy `refresh_token` from the JSON response into `.env`.
+
+   <details><summary>Or use a single static token (simpler, but expires in 6 hours)</summary>
+
    ```
    STRAVA_ACCESS_TOKEN=your_access_token_here
    ```
+   </details>
 
 2. Run the preview script:
    ```bash

@@ -15,9 +15,18 @@ Usage:
     --output    Output file path               (default: preview.png)
     --no-show   Save image but don't open it
 
-Access token — provide one of:
-    1. Environment variable:  STRAVA_ACCESS_TOKEN=<token>
-    2. A .env file next to this script with:  STRAVA_ACCESS_TOKEN=<token>
+Authentication — choose one (checked in this order):
+
+    1. Auto-refresh (recommended — never expires). Put these in a .env file
+       next to this script (or as environment variables):
+           STRAVA_CLIENT_ID=<your client id>
+           STRAVA_CLIENT_SECRET=<your client secret>
+           STRAVA_REFRESH_TOKEN=<your refresh token>
+       The script mints a fresh access token on each run and caches it back
+       to .env, so it never goes stale.
+
+    2. Static access token (expires 6 hours after it is issued):
+           STRAVA_ACCESS_TOKEN=<token>
 
 Install dependencies (if not already installed):
     pip install pillow requests
@@ -27,6 +36,7 @@ import argparse
 import importlib.util
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
@@ -84,20 +94,90 @@ spec.loader.exec_module(plugin)
 # Token loading
 # ---------------------------------------------------------------------------
 
-def _load_token():
-    token = os.environ.get("STRAVA_ACCESS_TOKEN")
-    if token:
-        return token
+_ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
 
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_path):
-        with open(env_path) as f:
+# Refresh a few minutes early so a token never expires mid-request.
+_EXPIRY_SKEW_SECONDS = 300
+
+
+def _read_env_file():
+    """Parse the .env file next to this script into a dict (empty if missing)."""
+    values = {}
+    if os.path.exists(_ENV_PATH):
+        with open(_ENV_PATH) as f:
             for line in f:
                 line = line.strip()
-                if line.startswith("STRAVA_ACCESS_TOKEN="):
-                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                values[key.strip()] = val.strip().strip('"').strip("'")
+    return values
 
-    return None
+
+def _write_env_values(updates):
+    """Update/insert key=value pairs in .env, preserving other lines/comments."""
+    lines = []
+    if os.path.exists(_ENV_PATH):
+        with open(_ENV_PATH) as f:
+            lines = f.read().splitlines()
+
+    remaining = dict(updates)
+    out = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.split("=", 1)[0].strip()
+            if key in remaining:
+                out.append(f"{key}={remaining.pop(key)}")
+                continue
+        out.append(line)
+
+    for key, val in remaining.items():
+        out.append(f"{key}={val}")
+
+    with open(_ENV_PATH, "w") as f:
+        f.write("\n".join(out) + "\n")
+
+
+def _env_value(key, file_env):
+    """Environment variable wins over the .env file."""
+    return os.environ.get(key) or file_env.get(key)
+
+
+def _load_token():
+    """Return a valid Strava access token, refreshing automatically if set up."""
+    file_env = _read_env_file()
+
+    client_id = _env_value("STRAVA_CLIENT_ID", file_env)
+    client_secret = _env_value("STRAVA_CLIENT_SECRET", file_env)
+    refresh_token = _env_value("STRAVA_REFRESH_TOKEN", file_env)
+
+    # --- Preferred path: auto-refresh via OAuth refresh token ---------------
+    if client_id and client_secret and refresh_token:
+        cached_token = _env_value("STRAVA_ACCESS_TOKEN", file_env)
+        expires_at = _env_value("STRAVA_TOKEN_EXPIRES_AT", file_env)
+
+        # Reuse the cached access token while it is still comfortably valid.
+        if cached_token and expires_at:
+            try:
+                if int(expires_at) - time.time() > _EXPIRY_SKEW_SECONDS:
+                    return cached_token
+            except ValueError:
+                pass  # malformed expiry — fall through and refresh
+
+        print("Refreshing Strava access token…")
+        data = plugin.refresh_access_token(client_id, client_secret, refresh_token)
+
+        # Cache the new token (and rotated refresh token) back to .env.
+        _write_env_values({
+            "STRAVA_ACCESS_TOKEN": data["access_token"],
+            "STRAVA_REFRESH_TOKEN": data["refresh_token"],
+            "STRAVA_TOKEN_EXPIRES_AT": str(data["expires_at"]),
+        })
+        return data["access_token"]
+
+    # --- Fallback: a single static access token (expires after 6 hours) -----
+    return _env_value("STRAVA_ACCESS_TOKEN", file_env)
 
 
 # ---------------------------------------------------------------------------
@@ -143,12 +223,22 @@ def main():
     )
     args = parser.parse_args()
 
-    token = _load_token()
+    try:
+        token = _load_token()
+    except Exception as e:
+        print(
+            f"Error obtaining Strava access token: {e}\n"
+            "If you are using auto-refresh, check STRAVA_CLIENT_ID, "
+            "STRAVA_CLIENT_SECRET and STRAVA_REFRESH_TOKEN in your .env."
+        )
+        sys.exit(1)
+
     if not token:
         print(
-            "Error: STRAVA_ACCESS_TOKEN not found.\n"
-            "Set the environment variable or add it to a .env file:\n"
-            "  STRAVA_ACCESS_TOKEN=your_token_here"
+            "Error: no Strava credentials found.\n"
+            "Add ONE of the following to your .env file:\n"
+            "  (recommended) STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET, STRAVA_REFRESH_TOKEN\n"
+            "  (or) STRAVA_ACCESS_TOKEN=your_token_here"
         )
         sys.exit(1)
 

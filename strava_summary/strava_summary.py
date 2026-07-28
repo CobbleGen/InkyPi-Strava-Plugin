@@ -291,8 +291,23 @@ def refresh_access_token(client_id, client_secret, refresh_token):
         raise Exception(f"Network error during token refresh: {e}")
 
     if response.status_code != 200:
-        raise Exception(f"Token refresh failed: {response.status_code}")
-    
+        # Surface Strava's specific error so the cause is diagnosable
+        # (e.g. invalid refresh token vs. wrong client_id/secret).
+        detail = ""
+        try:
+            body = response.json()
+            errors = body.get("errors")
+            if errors:
+                detail = " - " + "; ".join(
+                    f"{e.get('resource', '?')}.{e.get('field', '?')}: {e.get('code', '?')}"
+                    for e in errors
+                )
+            elif body.get("message"):
+                detail = f" - {body['message']}"
+        except ValueError:
+            detail = f" - {response.text[:200]}" if response.text else ""
+        raise Exception(f"Token refresh failed: {response.status_code}{detail}")
+
     return response.json()
 
 

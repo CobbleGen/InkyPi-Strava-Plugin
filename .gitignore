@@ -48,3 +48,6 @@ desktop.ini
 # Environment variables
 .env
 .env.local
+
+# Generated preview output
+preview.png

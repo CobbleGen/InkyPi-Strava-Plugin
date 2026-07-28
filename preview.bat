@@ -1,0 +1,1 @@
+python preview.py --mode combined --week --height 800
