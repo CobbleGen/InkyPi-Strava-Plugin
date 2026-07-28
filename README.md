@@ -19,6 +19,10 @@ A feature-rich plugin for [InkyPi](https://github.com/fatihak/InkyPi) that displ
 - Last N days (rolling window)
 - Current week (Monday to today)
 
+⛰️ **Optional Elevation Gain:**
+- Total climbing for the period, and per sport
+- Off by default; enable in settings
+
 🔐 **Easy OAuth Setup:**
 - One-click authorization in settings
 - Automatic token refresh
@@ -64,6 +68,10 @@ inkypi install strava_summary https://github.com/CobbleGen/InkyPi-Strava-Plugin
 - **Display Mode**: Summary, Calendar, or Combined
 - **Time Range**: Rolling days or Current week
 - **Days to look back**: Set for rolling mode (default: 7)
+- **Time Type**: Moving time (excludes pauses) or Elapsed time
+- **Show elevation gain**: Off by default. Adds total climbing in metres to the
+  Summary and Combined views, overall and per sport. Not shown in the Calendar
+  view, where the day columns are too narrow to stay legible.
 
 That's it! The plugin will automatically refresh your data and handle token expiration.
 
@@ -155,6 +163,7 @@ busiest case of three activities stacked in one day:
 ```bash
 python preview.py --demo --mode combined
 python preview.py --demo --mode calendar --width 800 --height 480
+python preview.py --demo --mode summary --elevation
 ```
 
 The easiest way to get a refresh token is the included OAuth helper, which

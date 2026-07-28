@@ -69,7 +69,9 @@ class Template(BasePlugin):
             days_back_value = settings.get("days_back", 7)
             days_back = int(days_back_value) if days_back_value not in ["", None] else 7
             time_type = settings.get("time_type", "moving_time")  # 'moving_time' or 'elapsed_time'
-            
+            # Checkbox: absent when unticked, "on"/"true" when ticked
+            show_elevation = str(settings.get("show_elevation", "")).lower() in ("on", "true", "1", "yes")
+
             # Calculate date range based on mode
             if time_mode == "current_week":
                 display_start_date, period_label = get_current_week_start()
@@ -99,10 +101,11 @@ class Template(BasePlugin):
                     render_calendar(draw, image, width, height, activities, display_start_date, period_label, time_type)
                 elif display_mode == "combined":
                     # Combined view: summary + calendar
-                    render_combined(draw, image, width, height, stats, activities, display_start_date, period_label, time_type)
+                    render_combined(draw, image, width, height, stats, activities, display_start_date,
+                                    period_label, time_type, show_elevation)
                 else:
                     # Summary view with aggregated totals
-                    render_stats(draw, width, height, stats, period_label)
+                    render_stats(draw, width, height, stats, period_label, show_elevation)
 
         except Exception as e:
             logger.error(f"Error fetching Strava data: {e}")
@@ -325,19 +328,22 @@ def aggregate_activities(activities, time_field='moving_time'):
 
     Returns:
         dict: Aggregated statistics with keys:
-            - total_km, total_time_seconds
-            - run_km, run_time_seconds
-            - bike_km, bike_time_seconds
+            - total_km, total_time_seconds, total_elevation_m
+            - run_km, run_time_seconds, run_elevation_m
+            - bike_km, bike_time_seconds, bike_elevation_m
             - swim_km, swim_time_seconds
             - strength_time_seconds
     """
     stats = {
         'total_km': 0.0,
         'total_time_seconds': 0,
+        'total_elevation_m': 0.0,
         'run_km': 0.0,
         'run_time_seconds': 0,
+        'run_elevation_m': 0.0,
         'bike_km': 0.0,
         'bike_time_seconds': 0,
+        'bike_elevation_m': 0.0,
         'swim_km': 0.0,
         'swim_time_seconds': 0,
         'strength_time_seconds': 0,
@@ -348,18 +354,23 @@ def aggregate_activities(activities, time_field='moving_time'):
         distance_meters = activity.get('distance', 0) or 0
         activity_time = activity.get(time_field, 0) or 0  # Use selected time field
         sport_type = activity.get('sport_type') or activity.get('type', '')
+        # Strava reports climbing as total_elevation_gain, in metres
+        elevation_m = activity.get('total_elevation_gain', 0) or 0
 
         # Add to overall totals
         stats['total_km'] += meters_to_km(distance_meters)
         stats['total_time_seconds'] += activity_time
+        stats['total_elevation_m'] += elevation_m
 
         # Add to sport-specific totals
         if sport_type in RUNNING_TYPES:
             stats['run_km'] += meters_to_km(distance_meters)
             stats['run_time_seconds'] += activity_time
+            stats['run_elevation_m'] += elevation_m
         elif sport_type in CYCLING_TYPES:
             stats['bike_km'] += meters_to_km(distance_meters)
             stats['bike_time_seconds'] += activity_time
+            stats['bike_elevation_m'] += elevation_m
         elif sport_type in SWIMMING_TYPES:
             stats['swim_km'] += meters_to_km(distance_meters)
             stats['swim_time_seconds'] += activity_time
@@ -439,6 +450,19 @@ def meters_to_km(meters):
     return meters / 1000.0
 
 
+def format_elevation(meters):
+    """
+    Format elevation gain for display, e.g. "1 240 m" or "480 m".
+
+    Args:
+        meters (float): Elevation gain in metres
+
+    Returns:
+        str: Formatted elevation with a thin space as thousands separator
+    """
+    return f"{int(round(meters)):,} m".replace(",", " ")
+
+
 def format_duration(seconds):
     """
     Format duration in seconds as human-readable string.
@@ -504,7 +528,7 @@ def load_activity_icon(icon_name, target_height):
     return None
 
 
-def render_stats(draw, width, height, stats, period_label):
+def render_stats(draw, width, height, stats, period_label, show_elevation=False):
     """
     Render aggregated Strava statistics on the image with Strava-inspired design.
 
@@ -514,6 +538,7 @@ def render_stats(draw, width, height, stats, period_label):
         height (int): Image height
         stats (dict): Aggregated statistics
         period_label (str): Label for the time period (e.g., "7d" or "This week")
+        show_elevation (bool): Also show elevation gain for the total and per sport
     """
     # Get the base image for pasting icons
     image = draw._image
@@ -576,22 +601,28 @@ def render_stats(draw, width, height, stats, period_label):
 
         y_pos += big_number_size + v_gap
 
-        # Total time below
+        # Total time below, with climbing alongside it when enabled
         time_text = format_duration(stats['total_time_seconds'])
+        if show_elevation:
+            time_text += f"  +{format_elevation(stats['total_elevation_m'])}"
         draw.text((padding, y_pos), time_text, fill=text_secondary, font=number_font)
         y_pos += number_font.size + v_gap
 
-    # Activity breakdown - compact grid layout with icons
+    # Activity breakdown - compact grid layout with icons.
+    # Elevation is only meaningful for running and cycling; swimming has none
+    # and strength activities are not distance/climb based.
     activities = []
     if stats['run_km'] > 0:
-        activities.append(("Run", "RUN", stats['run_km'], stats['run_time_seconds']))
+        activities.append(("Run", "RUN", stats['run_km'], stats['run_time_seconds'],
+                           stats['run_elevation_m']))
     if stats['bike_km'] > 0:
-        activities.append(("Bike", "RIDE", stats['bike_km'], stats['bike_time_seconds']))
+        activities.append(("Bike", "RIDE", stats['bike_km'], stats['bike_time_seconds'],
+                           stats['bike_elevation_m']))
     if stats['swim_km'] > 0:
-        activities.append(("Swim", "SWIM", stats['swim_km'], stats['swim_time_seconds']))
+        activities.append(("Swim", "SWIM", stats['swim_km'], stats['swim_time_seconds'], 0))
     if stats['strength_time_seconds'] > 0:
-        activities.append(("Strength", "STRENGTH", 0, stats['strength_time_seconds']))
-    
+        activities.append(("Strength", "STRENGTH", 0, stats['strength_time_seconds'], 0))
+
     if activities:
         # Draw separator line
         draw.line([(padding, y_pos), (width - padding, y_pos)], fill="#CCCCCC", width=1)
@@ -603,15 +634,18 @@ def render_stats(draw, width, height, stats, period_label):
         available_height = max(1, height - y_pos - v_gap)
         row_stride = available_height // rows
 
-        # Each cell is icon + distance line + time line
+        # Each cell is icon + distance line + time line (+ elevation line)
+        text_height = number_font.size + tiny_label_size
+        if show_elevation:
+            text_height += tiny_label_size
         icon_size = int(tiny_label_size * 1.5)
-        icon_size = max(10, min(icon_size, row_stride - number_font.size - tiny_label_size - 12))
-        cell_gap = max(4, min(10, (row_stride - icon_size - number_font.size - tiny_label_size) // 3))
+        icon_size = max(10, min(icon_size, row_stride - text_height - 12))
+        cell_gap = max(4, min(10, (row_stride - icon_size - text_height) // 3))
 
         # Grid layout for activities
         col_width = (width - 2 * padding) // min(len(activities), 3)
 
-        for i, (icon_name, label_text, km, seconds) in enumerate(activities):
+        for i, (icon_name, label_text, km, seconds, elevation_m) in enumerate(activities):
             # Calculate position (up to 3 columns)
             col = i % 3
             row = i // 3
@@ -646,6 +680,12 @@ def render_stats(draw, width, height, stats, period_label):
             # Time
             time_str = format_duration(seconds)
             draw.text((x_pos, current_y), time_str, fill=text_secondary, font=label_font)
+
+            # Elevation gain, for the sports where it means something
+            if show_elevation and elevation_m > 0:
+                current_y += tiny_label_size + max(2, cell_gap // 2)
+                draw.text((x_pos, current_y), f"+{format_elevation(elevation_m)}",
+                          fill=text_secondary, font=label_font)
 
 
 def render_calendar(draw, image, width, height, activities, start_date, period_label, time_field='moving_time'):
@@ -749,16 +789,22 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
     # Render each day column
     for i, day in enumerate(days):
         x_pos = padding + (i * col_width)
+        col_center_x = x_pos + (col_width // 2)
         current_y = y_pos
-        
-        # Day of week (Mon, Tue, etc.)
+
+        # Day of week (Mon, Tue, etc.) - centered over the column, matching the
+        # activity icons and figures below it
         day_name = day.strftime('%a').upper()
-        draw.text((x_pos, current_y), day_name, fill=text_secondary, font=day_font)
+        bbox = draw.textbbox((0, 0), day_name, font=day_font)
+        draw.text((col_center_x - ((bbox[2] - bbox[0]) // 2), current_y),
+                  day_name, fill=text_secondary, font=day_font)
         current_y += day_label_size + 8
 
-        # Date number
+        # Date number - centered
         day_number = day.strftime('%d')
-        draw.text((x_pos, current_y), day_number, fill=text_primary, font=date_font)
+        bbox = draw.textbbox((0, 0), day_number, font=date_font)
+        draw.text((col_center_x - ((bbox[2] - bbox[0]) // 2), current_y),
+                  day_number, fill=text_primary, font=date_font)
         current_y += date_size + v_gap
 
         # Activity icons for this day
@@ -775,7 +821,6 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
                 icon = load_activity_icon(activity_type, icon_size)
                 if icon:
                     # Center icon in column
-                    col_center_x = x_pos + (col_width // 2)
                     icon_x = col_center_x - (icon.width // 2)
                     image.paste(icon, (icon_x, current_y), icon)
                     current_y += icon.height + gap_icon
@@ -805,13 +850,13 @@ def render_calendar(draw, image, width, height, activities, start_date, period_l
         else:
             # Show a dash for no activities
             dash_y = current_y + icon_size // 2
-            col_center_x = x_pos + (col_width // 2)
-            draw.line([(col_center_x - 5, dash_y), 
-                      (col_center_x + 5, dash_y)], 
+            draw.line([(col_center_x - 5, dash_y),
+                      (col_center_x + 5, dash_y)],
                      fill="#CCCCCC", width=2)
 
 
-def render_combined(draw, image, width, height, stats, activities, start_date, period_label, time_field='moving_time'):
+def render_combined(draw, image, width, height, stats, activities, start_date, period_label,
+                    time_field='moving_time', show_elevation=False):
     """
     Render combined view with summary stats at top and calendar below.
     
@@ -873,8 +918,10 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         draw.text((padding, y_pos), "Total", fill=text_secondary, font=tiny_font)
         y_pos += tiny_size + max(2, v_gap // 2)
 
-        # Total distance and time on one line
+        # Total distance and time on one line, plus climbing when enabled
         total_text = f"{stats['total_km']:.1f} km \u2022 {format_duration(stats['total_time_seconds'])}"
+        if show_elevation:
+            total_text += f" \u2022 +{format_elevation(stats['total_elevation_m'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)
         y_pos += stat_size + v_gap
 

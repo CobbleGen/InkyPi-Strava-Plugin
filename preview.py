@@ -148,25 +148,25 @@ def _env_value(key, file_env):
 # Demo data — for tuning layout without hitting the Strava API
 # ---------------------------------------------------------------------------
 
-# (day offset from start of period, sport_type, distance in metres, seconds)
+# (day offset from start of period, sport_type, distance in metres, seconds, elevation in metres)
 # Day 2 deliberately holds three activities: the busiest case the calendar
 # columns have to fit. Day 4 is left empty to show the no-activity dash.
 _DEMO_ACTIVITIES = [
-    (0, "Run", 8200, 2640),
-    (1, "Ride", 34500, 4980),
-    (2, "Run", 12400, 3900),
-    (2, "WeightTraining", 0, 2700),
-    (2, "Swim", 1500, 2100),
-    (3, "TrailRun", 16800, 6300),
-    (5, "Ride", 61200, 8400),
-    (6, "Run", 5100, 1560),
+    (0, "Run", 8200, 2640, 62),
+    (1, "Ride", 34500, 4980, 310),
+    (2, "Run", 12400, 3900, 88),
+    (2, "WeightTraining", 0, 2700, 0),
+    (2, "Swim", 1500, 2100, 0),
+    (3, "TrailRun", 16800, 6300, 740),
+    (5, "Ride", 61200, 8400, 1120),
+    (6, "Run", 5100, 1560, 35),
 ]
 
 
 def _demo_activities(start_date):
     """Build a synthetic activity list spanning the display period."""
     activities = []
-    for day_offset, sport_type, distance, seconds in _DEMO_ACTIVITIES:
+    for day_offset, sport_type, distance, seconds, elevation in _DEMO_ACTIVITIES:
         day = start_date + timedelta(days=day_offset)
         # Skip days beyond today so week mode looks realistic mid-week.
         if day.date() > datetime.now().date():
@@ -178,6 +178,7 @@ def _demo_activities(start_date):
             "moving_time": seconds,
             # Elapsed time is a little longer, so --time-type is visibly different.
             "elapsed_time": int(seconds * 1.15),
+            "total_elevation_gain": elevation,
             "start_date_local": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
         })
     return activities
@@ -264,6 +265,10 @@ def main():
         "--demo", action="store_true",
         help="Render sample activities offline (no Strava credentials needed)",
     )
+    parser.add_argument(
+        "--elevation", action="store_true",
+        help="Show elevation gain (summary and combined modes)",
+    )
     args = parser.parse_args()
 
     token = None
@@ -328,9 +333,10 @@ def main():
                 plugin.render_combined(
                     draw, image, width, height,
                     stats, activities, display_start_date, period_label, args.time_type,
+                    args.elevation,
                 )
             else:
-                plugin.render_stats(draw, width, height, stats, period_label)
+                plugin.render_stats(draw, width, height, stats, period_label, args.elevation)
 
     except Exception as e:
         plugin.render_message(draw, width, height, "Error", str(e))
