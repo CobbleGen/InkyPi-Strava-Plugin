@@ -108,7 +108,7 @@ class Template(BasePlugin):
             logger.error(f"Error fetching Strava data: {e}")
             render_message(draw, width, height, "Strava Error", str(e))
 
-        logger.debug(f"Strava plugin rendered image ({width}×{height})")
+        logger.debug(f"Strava plugin rendered image ({width}\u00d7{height})")
         return image
 
     def _get_valid_access_token(self, settings, device_config):
