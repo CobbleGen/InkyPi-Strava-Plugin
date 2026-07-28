@@ -80,10 +80,11 @@
 </div>
 
 <div class="form-group">
-    <label for="show_elevation" class="form-label">
-        <input type="checkbox" id="show_elevation" name="show_elevation" value="true">
-        Show elevation gain
-    </label>
+    <label for="show_elevation" class="form-label">Elevation Gain:</label>
+    <select id="show_elevation" name="show_elevation" required class="form-input">
+        <option value="false" selected>Hide</option>
+        <option value="true">Show</option>
+    </select>
     <small class="form-text">Adds total climbing (in metres) to the summary and combined views. Useful for trail running and hilly rides. Not shown in the calendar view, where the columns are too narrow.</small>
 </div>
 
@@ -110,8 +111,9 @@
             document.getElementById('time_mode').value = pluginSettings.time_mode || 'rolling';
             document.getElementById('days_back').value = pluginSettings.days_back || 7;
             document.getElementById('time_type').value = pluginSettings.time_type || 'moving_time';
-            document.getElementById('show_elevation').checked =
-                ['true', 'on', '1', 'yes'].includes(String(pluginSettings.show_elevation).toLowerCase());
+            document.getElementById('show_elevation').value =
+                ['true', 'on', '1', 'yes'].includes(String(pluginSettings.show_elevation).toLowerCase())
+                    ? 'true' : 'false';
         }
         
         // Check if we're returning from Strava OAuth
