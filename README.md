@@ -180,7 +180,12 @@ python last_week.py --mode summary   # totals only
 python last_week.py --elevation      # include climbing
 python last_week.py --weeks-ago 3    # three weeks back, for backfilling
 python last_week.py --dir weeks      # collect them in a folder
+python last_week.py --landscape      # on its side, like the e-ink panel
 ```
+
+Images are upright (448×600) by default, since these are saved and looked at
+rather than shown on a panel. `preview.py` still defaults to the panel's
+landscape shape and takes `--portrait` to flip it.
 
 Weeks run Monday to Sunday and only completed weeks are offered — for the week
 in progress use `python preview.py --week`. On Windows, `last_week.bat` runs it

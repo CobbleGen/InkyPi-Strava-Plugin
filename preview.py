@@ -258,6 +258,10 @@ def main():
         help="Image height in pixels (default: 448)",
     )
     parser.add_argument(
+        "--portrait", action="store_true",
+        help="Render upright: swaps width and height",
+    )
+    parser.add_argument(
         "--output", default="preview.png",
         help="Output file path (default: preview.png)",
     )
@@ -275,9 +279,13 @@ def main():
     )
     args = parser.parse_args()
 
+    width, height = args.width, args.height
+    if args.portrait:
+        width, height = min(width, height), max(width, height)
+
     render_image(
         mode=args.mode, days=args.days, week=args.week, last_week=args.last_week,
-        time_type=args.time_type, width=args.width, height=args.height,
+        time_type=args.time_type, width=width, height=height,
         output=args.output, show=not args.no_show, demo=args.demo,
         elevation=args.elevation,
     )

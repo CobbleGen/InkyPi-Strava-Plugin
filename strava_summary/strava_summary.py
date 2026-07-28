@@ -739,6 +739,12 @@ def render_stats(draw, width, height, stats, period_label, show_elevation=False)
         icon_size = max(10, min(icon_size, row_stride - text_height - 12))
         cell_gap = max(4, min(10, (row_stride - icon_size - text_height) // 3))
 
+        # Never stretch rows to fill the panel: on a tall/portrait panel that
+        # opens a void between row 1 and row 2. Cap the stride at what a row
+        # actually needs and let the spare space fall to the bottom.
+        natural_row = icon_size + text_height + cell_gap * 3 + v_gap
+        row_stride = min(row_stride, natural_row)
+
         # Grid layout for activities
         col_width = (width - 2 * padding) // min(len(activities), 3)
 
@@ -1042,7 +1048,10 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             text_block = tiny_size * 2 + 6
             room = calendar_top - v_gap * 2 - y_pos
             icon_size = max(10, min(int(tiny_size * 1.8), room - text_block))
-            row_y = max(y_pos, calendar_top - v_gap * 2 - (icon_size + text_block))
+            # Sit directly under the totals, only riding up if the row would
+            # otherwise run into the calendar. Anchoring it to the calendar
+            # instead leaves a gap under the totals on a tall/portrait panel.
+            row_y = min(y_pos, calendar_top - v_gap * 2 - (icon_size + text_block))
 
             # Calculate spacing to distribute activities evenly
             available_width = width - (2 * padding)

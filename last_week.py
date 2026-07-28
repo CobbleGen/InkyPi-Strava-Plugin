@@ -9,7 +9,12 @@ Usage:
     python last_week.py --elevation      # include climbing
     python last_week.py --weeks-ago 3    # three weeks back, for backfilling
     python last_week.py --dir weeks      # write into a folder
+    python last_week.py --landscape      # on its side, like the e-ink panel
     python last_week.py --demo           # sample data, no credentials needed
+
+Images are upright (448x600) by default, since these are meant to be saved and
+looked at rather than shown on a panel. Use --landscape, or --width/--height,
+for other shapes.
 
 Weeks run Monday to Sunday, and only completed weeks are offered - the current
 week is still in progress, so use `python preview.py --week` for that.
@@ -78,8 +83,10 @@ def main():
     )
     parser.add_argument("--elevation", action="store_true",
                         help="Include elevation gain")
-    parser.add_argument("--width", type=int, default=600, help="Image width (default: 600)")
-    parser.add_argument("--height", type=int, default=448, help="Image height (default: 448)")
+    parser.add_argument("--width", type=int, default=448, help="Image width (default: 448)")
+    parser.add_argument("--height", type=int, default=600, help="Image height (default: 600)")
+    parser.add_argument("--landscape", action="store_true",
+                        help="Render on its side instead of upright (swaps width and height)")
     parser.add_argument("--output", help="Output path (default: strava-YYYY-Www.png)")
     parser.add_argument("--dir", dest="directory", default=".",
                         help="Directory to write into (default: current directory)")
@@ -105,6 +112,11 @@ def main():
         if args.directory != ".":
             os.makedirs(args.directory, exist_ok=True)
 
+    # Upright by default; these are saved and looked at, not shown on a panel
+    width, height = min(args.width, args.height), max(args.width, args.height)
+    if args.landscape:
+        width, height = height, width
+
     print(f"Week of {monday:%Y-%m-%d} to {sunday:%Y-%m-%d}")
 
     # "after" is exclusive, so step back a second to include Monday 00:00:00;
@@ -112,8 +124,8 @@ def main():
     preview.render_image(
         mode=args.mode,
         time_type=args.time_type,
-        width=args.width,
-        height=args.height,
+        width=width,
+        height=height,
         output=output,
         show=not args.no_show,
         demo=args.demo,
