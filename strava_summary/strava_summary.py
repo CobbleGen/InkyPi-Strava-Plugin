@@ -1034,18 +1034,23 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
         # Activity breakdown - horizontal layout with icon, distance AND time per activity
         activities_summary = []
         if stats['run_km'] > 0:
-            activities_summary.append(("Run", stats['run_km'], stats['run_time_seconds']))
+            activities_summary.append(("Run", stats['run_km'], stats['run_time_seconds'],
+                                       stats['run_elevation_m']))
         if stats['bike_km'] > 0:
-            activities_summary.append(("Bike", stats['bike_km'], stats['bike_time_seconds']))
+            activities_summary.append(("Bike", stats['bike_km'], stats['bike_time_seconds'],
+                                       stats['bike_elevation_m']))
         if stats['swim_km'] > 0:
-            activities_summary.append(("Swim", stats['swim_km'], stats['swim_time_seconds']))
+            activities_summary.append(("Swim", stats['swim_km'], stats['swim_time_seconds'], 0))
         if stats['strength_time_seconds'] > 0:
-            activities_summary.append(("Strength", 0, stats['strength_time_seconds']))
-        
+            activities_summary.append(("Strength", 0, stats['strength_time_seconds'], 0))
+
         if activities_summary:
             # Fit the breakdown row into whatever is left above the calendar,
-            # shrinking the icon rather than overflowing into it.
+            # shrinking the icon rather than overflowing into it. Elevation adds
+            # a third line to the sports that have any.
             text_block = tiny_size * 2 + 6
+            if show_elevation and any(e > 0 for _, _, _, e in activities_summary):
+                text_block += tiny_size + 2
             room = calendar_top - v_gap * 2 - y_pos
             icon_size = max(10, min(int(tiny_size * 1.8), room - text_block))
             # Sit directly under the totals, only riding up if the row would
@@ -1057,7 +1062,7 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
             available_width = width - (2 * padding)
             col_width = available_width // len(activities_summary)
 
-            for i, (activity_icon, km, seconds) in enumerate(activities_summary):
+            for i, (activity_icon, km, seconds, elevation_m) in enumerate(activities_summary):
                 x_offset = padding + (i * col_width)
                 current_y = row_y
 
@@ -1066,16 +1071,22 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
                 if icon:
                     image.paste(icon, (x_offset, current_y), icon)
                     current_y += icon.height + 4
-                
+
                 # Distance with unit (skip for activities with no distance like strength)
                 if km > 0:
                     dist_text = f"{km:.1f} km"
                     draw.text((x_offset, current_y), dist_text, fill=text_primary, font=tiny_font)
                     current_y += tiny_size + 2
-                
+
                 # Time
                 time_text = format_duration(seconds)
                 draw.text((x_offset, current_y), time_text, fill=text_secondary, font=tiny_font)
+
+                # Elevation gain, for the sports that have any
+                if show_elevation and elevation_m > 0:
+                    current_y += tiny_size + 2
+                    draw_icon_text(draw, image, (x_offset, current_y), "Elevation",
+                                   format_elevation(elevation_m), tiny_font, text_secondary)
 
     # Separator, then hand the rest of the panel to the calendar
     draw.line([(padding, calendar_top - v_gap), (width - padding, calendar_top - v_gap)],
