@@ -548,7 +548,7 @@ def draw_icon_text(draw, image, xy, icon_name, text, font, fill):
         int: x position just past the drawn text
     """
     x, y = xy
-    icon = load_activity_icon(icon_name, max(6, int(font.size * 0.62)))
+    icon = load_activity_icon(icon_name, max(6, int(font.size * 0.78)))
     if icon:
         image.paste(icon, (int(x), int(y + max(0, (font.size - icon.height) // 2))), icon)
         x += icon.width + max(3, font.size // 5)
