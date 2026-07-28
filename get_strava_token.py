@@ -145,7 +145,7 @@ def main():
         sys.exit(1)
 
     print("\nMake sure your Strava app's 'Authorization Callback Domain' is set to: localhost")
-    print("\nOpening Strava authorization in your browser…")
+    print("\nOpening Strava authorization in your browser...")
     print("(On the Strava screen, leave the 'View data about your activities' box ticked.)\n")
     print(auth_url + "\n")
     if not args.no_browser:
@@ -154,7 +154,7 @@ def main():
     # Serve a single request (the redirect), then stop.
     t = threading.Thread(target=server.handle_request)
     t.start()
-    print(f"Waiting for authorization on {redirect_uri} …")
+    print(f"Waiting for authorization on {redirect_uri} ...")
     t.join(timeout=300)
     server.server_close()
 
@@ -165,7 +165,7 @@ def main():
         print("\nTimed out waiting for authorization (5 min). Please re-run.")
         sys.exit(1)
 
-    print("Got authorization code. Exchanging it for tokens…")
+    print("Got authorization code. Exchanging it for tokens...")
     resp = requests.post(
         "https://www.strava.com/oauth/token",
         data={
@@ -208,7 +208,7 @@ def main():
     })
 
     print("\n Success! Tokens written to .env")
-    print(f"   Refresh token: {refresh_token[:8]}…")
+    print(f"   Refresh token: {refresh_token[:8]}...")
     if "activity:read_all" not in granted:
         print("\n WARNING: 'activity:read_all' was not granted (scope: "
               f"{granted or 'none'}). Activity reads will fail with 401.")
