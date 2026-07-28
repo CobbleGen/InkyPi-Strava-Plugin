@@ -528,6 +528,35 @@ def load_activity_icon(icon_name, target_height):
     return None
 
 
+def draw_icon_text(draw, image, xy, icon_name, text, font, fill):
+    """
+    Draw a small icon followed by text, with the icon centred on the text.
+
+    Used for inline metrics such as elevation gain, where a glyph reads better
+    than a "+" prefix.
+
+    Args:
+        draw: PIL ImageDraw object
+        image: PIL Image object (for pasting the icon)
+        xy (tuple): Top-left position of the text
+        icon_name (str): Icon file name without extension
+        text (str): Text to draw after the icon
+        font: PIL font
+        fill: Text colour
+
+    Returns:
+        int: x position just past the drawn text
+    """
+    x, y = xy
+    icon = load_activity_icon(icon_name, max(6, int(font.size * 0.62)))
+    if icon:
+        image.paste(icon, (int(x), int(y + max(0, (font.size - icon.height) // 2))), icon)
+        x += icon.width + max(3, font.size // 5)
+    draw.text((x, y), text, fill=fill, font=font)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    return x + (bbox[2] - bbox[0])
+
+
 def render_stats(draw, width, height, stats, period_label, show_elevation=False):
     """
     Render aggregated Strava statistics on the image with Strava-inspired design.
@@ -603,9 +632,12 @@ def render_stats(draw, width, height, stats, period_label, show_elevation=False)
 
         # Total time below, with climbing alongside it when enabled
         time_text = format_duration(stats['total_time_seconds'])
-        if show_elevation:
-            time_text += f"  +{format_elevation(stats['total_elevation_m'])}"
         draw.text((padding, y_pos), time_text, fill=text_secondary, font=number_font)
+        if show_elevation:
+            bbox = draw.textbbox((0, 0), time_text, font=number_font)
+            draw_icon_text(draw, image, (padding + (bbox[2] - bbox[0]) + number_font.size // 2, y_pos),
+                           "Elevation", format_elevation(stats['total_elevation_m']),
+                           number_font, text_secondary)
         y_pos += number_font.size + v_gap
 
     # Activity breakdown - compact grid layout with icons.
@@ -684,8 +716,8 @@ def render_stats(draw, width, height, stats, period_label, show_elevation=False)
             # Elevation gain, for the sports where it means something
             if show_elevation and elevation_m > 0:
                 current_y += tiny_label_size + max(2, cell_gap // 2)
-                draw.text((x_pos, current_y), f"+{format_elevation(elevation_m)}",
-                          fill=text_secondary, font=label_font)
+                draw_icon_text(draw, image, (x_pos, current_y), "Elevation",
+                               format_elevation(elevation_m), label_font, text_secondary)
 
 
 def render_calendar(draw, image, width, height, activities, start_date, period_label, time_field='moving_time'):
@@ -920,9 +952,12 @@ def render_combined(draw, image, width, height, stats, activities, start_date, p
 
         # Total distance and time on one line, plus climbing when enabled
         total_text = f"{stats['total_km']:.1f} km \u2022 {format_duration(stats['total_time_seconds'])}"
-        if show_elevation:
-            total_text += f" \u2022 +{format_elevation(stats['total_elevation_m'])}"
         draw.text((padding, y_pos), total_text, fill=text_primary, font=stat_font)
+        if show_elevation:
+            bbox = draw.textbbox((0, 0), total_text, font=stat_font)
+            draw_icon_text(draw, image, (padding + (bbox[2] - bbox[0]) + stat_font.size // 2, y_pos),
+                           "Elevation", format_elevation(stats['total_elevation_m']),
+                           stat_font, text_primary)
         y_pos += stat_size + v_gap
 
         # Activity breakdown - horizontal layout with icon, distance AND time per activity
