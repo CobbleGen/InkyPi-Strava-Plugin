@@ -73,9 +73,14 @@ class Template(BasePlugin):
             show_elevation = str(settings.get("show_elevation", "")).lower() in ("on", "true", "1", "yes")
 
             # Calculate date range based on mode
+            before_date = None
             if time_mode == "current_week":
                 display_start_date, period_label = get_current_week_start()
                 # For API fetch, go back 1 second so "after" (exclusive) includes activities from Monday 00:00:00
+                after_date = display_start_date - timedelta(seconds=1)
+            elif time_mode == "last_week":
+                # Closed window: needs an upper bound so this week is excluded
+                display_start_date, before_date, period_label = get_last_week_range()
                 after_date = display_start_date - timedelta(seconds=1)
             else:
                 # Include today in the range: if days_back=7, show past 6 days + today = 7 days total
@@ -86,8 +91,10 @@ class Template(BasePlugin):
                 after_date = display_start_date - timedelta(seconds=1)
                 period_label = f"Last {days_back} Days" if days_back != 1 else "Today"
 
-            # Fetch activities from Strava
-            activities = fetch_strava_activities(access_token, after_date)
+            # Fetch activities from Strava, then trim to the window in local
+            # time so the totals match the days actually shown
+            activities = fetch_strava_activities(access_token, after_date, before_date)
+            activities = filter_activities_to_window(activities, display_start_date, before_date)
 
             if not activities:
                 render_message(draw, width, height, "No activities found", period_label)
@@ -203,13 +210,30 @@ def get_current_week_start():
     return monday_start, "This week"
 
 
-def fetch_strava_activities(access_token, after_date):
+def get_last_week_range():
+    """
+    Calculate the bounds of the previous calendar week (Monday to Sunday).
+
+    Returns:
+        tuple: (start_datetime, end_datetime, label_string) where end is the
+               start of the current week, i.e. an exclusive upper bound
+    """
+    now = datetime.now()
+    this_monday = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    last_monday = this_monday - timedelta(days=7)
+    return last_monday, this_monday, "Last week"
+
+
+def fetch_strava_activities(access_token, after_date, before_date=None):
     """
     Fetch activities from Strava API for the specified time period.
 
     Args:
         access_token (str): Strava API access token
         after_date (datetime): Start date for fetching activities
+        before_date (datetime): Optional end date; needed for closed windows
+            such as "last week", which must not include this week's activities
 
     Returns:
         list: List of activity dictionaries from Strava API
@@ -228,6 +252,8 @@ def fetch_strava_activities(access_token, after_date):
         "after": after_timestamp,
         "per_page": 100  # Fetch up to 100 activities (can be extended with pagination)
     }
+    if before_date is not None:
+        params["before"] = int(before_date.timestamp())
 
     url = f"{STRAVA_API_BASE_URL}/athlete/activities"
     try:
@@ -317,6 +343,45 @@ def refresh_access_token(client_id, client_secret, refresh_token):
 # ============================================================================
 # AGGREGATION LOGIC
 # ============================================================================
+
+def filter_activities_to_window(activities, start_date, end_date=None):
+    """
+    Keep only activities whose LOCAL start falls inside the displayed window.
+
+    The Strava API filters on UTC start time, while the calendar groups by
+    start_date_local. Without this, an activity at 00:30 local Monday (22:30
+    UTC Sunday) counts towards the previous week's totals while appearing in
+    no visible column - the totals and the calendar would disagree.
+
+    Activities with an unparseable date are kept, so a surprise in the feed
+    never silently drops real training.
+
+    Args:
+        activities (list): Activity dictionaries from Strava
+        start_date (datetime): First day of the window (inclusive)
+        end_date (datetime): Exclusive end of the window, or None for open-ended
+
+    Returns:
+        list: The activities inside the window
+    """
+    kept = []
+    for activity in activities:
+        date_str = activity.get('start_date_local') or activity.get('start_date', '')
+        if not date_str:
+            kept.append(activity)
+            continue
+        try:
+            local_start = datetime.fromisoformat(date_str.replace('Z', '+00:00')).replace(tzinfo=None)
+        except (ValueError, AttributeError):
+            kept.append(activity)
+            continue
+        if local_start < start_date:
+            continue
+        if end_date is not None and local_start >= end_date:
+            continue
+        kept.append(activity)
+    return kept
+
 
 def aggregate_activities(activities, time_field='moving_time'):
     """

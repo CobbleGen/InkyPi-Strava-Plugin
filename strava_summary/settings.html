@@ -60,8 +60,9 @@
     <select id="time_mode" name="time_mode" required class="form-input">
         <option value="rolling">Last N days (rolling)</option>
         <option value="current_week">This week (Mon-Today)</option>
+        <option value="last_week">Last week (Mon-Sun)</option>
     </select>
-    <small class="form-text">Choose between rolling days or current week starting Monday</small>
+    <small class="form-text">Choose between rolling days, the current week starting Monday, or the completed previous week</small>
 </div>
 
 <div class="form-group" id="days_back_group">
@@ -133,7 +134,8 @@
         
         // Toggle days_back visibility based on time_mode
         function updateDaysBackVisibility() {
-            if (timeModeSelect.value === 'current_week') {
+            // Only the rolling mode uses a day count; both week modes have fixed bounds
+            if (timeModeSelect.value === 'current_week' || timeModeSelect.value === 'last_week') {
                 daysBackGroup.style.display = 'none';
                 document.getElementById('days_back').required = false;
             } else {

@@ -18,6 +18,7 @@ A feature-rich plugin for [InkyPi](https://github.com/fatihak/InkyPi) that displ
 📅 **Flexible Time Ranges:**
 - Last N days (rolling window)
 - Current week (Monday to today)
+- Last week (the completed Monday–Sunday just gone)
 
 ⛰️ **Optional Elevation Gain:**
 - Total climbing for the period, and per sport
@@ -66,7 +67,8 @@ inkypi install strava_summary https://github.com/CobbleGen/InkyPi-Strava-Plugin
 ### Step 3: Choose Display Options
 
 - **Display Mode**: Summary, Calendar, or Combined
-- **Time Range**: Rolling days or Current week
+- **Time Range**: Rolling days, Current week (Mon–today), or Last week (the
+  completed Mon–Sun just gone)
 - **Days to look back**: Set for rolling mode (default: 7)
 - **Time Type**: Moving time (excludes pauses) or Elapsed time
 - **Show elevation gain**: Off by default. Adds total climbing in metres to the
@@ -147,6 +149,7 @@ You can generate a preview image on your computer without needing the InkyPi har
    python preview.py --mode summary
    python preview.py --mode combined
    python preview.py --week               # current week instead of rolling days
+   python preview.py --last-week          # the completed week just gone
    python preview.py --days 14            # last 14 days
    python preview.py --width 800 --height 480
    python preview.py --output my_preview.png --no-show
@@ -165,6 +168,23 @@ python preview.py --demo --mode combined
 python preview.py --demo --mode calendar --width 800 --height 480
 python preview.py --demo --mode summary --elevation
 ```
+
+### Weekly archive
+
+`last_week.py` renders a completed week and names the file after it, so images
+build up in date order:
+
+```bash
+python last_week.py                  # last week, combined view -> strava-2026-W30.png
+python last_week.py --mode summary   # totals only
+python last_week.py --elevation      # include climbing
+python last_week.py --weeks-ago 3    # three weeks back, for backfilling
+python last_week.py --dir weeks      # collect them in a folder
+```
+
+Weeks run Monday to Sunday and only completed weeks are offered — for the week
+in progress use `python preview.py --week`. On Windows, `last_week.bat` runs it
+with no arguments needed.
 
 The easiest way to get a refresh token is the included OAuth helper, which
 writes everything into `.env` for you (set your Strava app's callback domain to

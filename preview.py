@@ -241,6 +241,10 @@ def main():
         help="Use current week (Mon-today) instead of rolling days",
     )
     parser.add_argument(
+        "--last-week", action="store_true", dest="last_week",
+        help="Use the previous completed week (Mon-Sun)",
+    )
+    parser.add_argument(
         "--time-type", choices=["moving_time", "elapsed_time"], default="moving_time",
         dest="time_type",
         help="Which Strava time field to use (default: moving_time)",
@@ -271,8 +275,55 @@ def main():
     )
     args = parser.parse_args()
 
+    render_image(
+        mode=args.mode, days=args.days, week=args.week, last_week=args.last_week,
+        time_type=args.time_type, width=args.width, height=args.height,
+        output=args.output, show=not args.no_show, demo=args.demo,
+        elevation=args.elevation,
+    )
+
+
+def resolve_period(days=7, week=False, last_week=False):
+    """
+    Work out the window to display.
+
+    Returns:
+        tuple: (display_start_date, after_date, before_date, period_label) where
+               before_date is None for open-ended windows
+    """
+    if last_week:
+        display_start_date, before_date, period_label = plugin.get_last_week_range()
+        return display_start_date, display_start_date - timedelta(seconds=1), before_date, period_label
+
+    if week:
+        display_start_date, period_label = plugin.get_current_week_start()
+        return display_start_date, display_start_date - timedelta(seconds=1), None, period_label
+
+    display_start_date = (datetime.now() - timedelta(days=days - 1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    label = f"Last {days} Days" if days != 1 else "Today"
+    return display_start_date, display_start_date - timedelta(seconds=1), None, label
+
+
+def render_image(mode="calendar", days=7, week=False, last_week=False,
+                 time_type="moving_time", width=600, height=448,
+                 output="preview.png", show=True, demo=False, elevation=False,
+                 period=None):
+    """
+    Render one image and save it. Shared by preview.py and last_week.py.
+
+    Args:
+        period (tuple): Optional explicit window as
+            (display_start_date, after_date, before_date, label), which
+            overrides the days/week/last_week flags. Used by last_week.py to
+            render an arbitrary past week.
+
+    Returns:
+        str: The path the image was written to
+    """
     token = None
-    if not args.demo:
+    if not demo:
         try:
             token = _load_token()
         except Exception as e:
@@ -293,60 +344,56 @@ def main():
             )
             sys.exit(1)
 
-    width, height = args.width, args.height
     image = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(image)
 
     try:
-        if args.week:
-            display_start_date, period_label = plugin.get_current_week_start()
-            after_date = display_start_date - timedelta(seconds=1)
+        if period is not None:
+            display_start_date, after_date, before_date, period_label = period
         else:
-            days_back = args.days
-            display_start_date = datetime.now() - timedelta(days=days_back - 1)
-            display_start_date = display_start_date.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
-            after_date = display_start_date - timedelta(seconds=1)
-            period_label = f"Last {days_back} Days" if days_back != 1 else "Today"
+            display_start_date, after_date, before_date, period_label = resolve_period(
+                days=days, week=week, last_week=last_week)
 
-        if args.demo:
+        if demo:
             print(f"Rendering demo data ({period_label})...")
             activities = _demo_activities(display_start_date)
         else:
             print(f"Fetching activities from Strava ({period_label})...")
-            activities = plugin.fetch_strava_activities(token, after_date)
+            activities = plugin.fetch_strava_activities(token, after_date, before_date)
+            activities = plugin.filter_activities_to_window(
+                activities, display_start_date, before_date)
 
         if not activities:
             plugin.render_message(draw, width, height, "No activities found", period_label)
             print("No activities found for this period.")
         else:
-            print(f"Fetched {len(activities)} activities. Rendering {args.mode} view...")
-            stats = plugin.aggregate_activities(activities, args.time_type)
+            print(f"Fetched {len(activities)} activities. Rendering {mode} view...")
+            stats = plugin.aggregate_activities(activities, time_type)
 
-            if args.mode == "calendar":
+            if mode == "calendar":
                 plugin.render_calendar(
                     draw, image, width, height,
-                    activities, display_start_date, period_label, args.time_type,
+                    activities, display_start_date, period_label, time_type,
                 )
-            elif args.mode == "combined":
+            elif mode == "combined":
                 plugin.render_combined(
                     draw, image, width, height,
-                    stats, activities, display_start_date, period_label, args.time_type,
-                    args.elevation,
+                    stats, activities, display_start_date, period_label, time_type,
+                    elevation,
                 )
             else:
-                plugin.render_stats(draw, width, height, stats, period_label, args.elevation)
+                plugin.render_stats(draw, width, height, stats, period_label, elevation)
 
     except Exception as e:
         plugin.render_message(draw, width, height, "Error", str(e))
         print(f"Error: {e}")
 
-    image.save(args.output)
-    print(f"Saved -> {args.output}")
+    image.save(output)
+    print(f"Saved -> {output}")
 
-    if not args.no_show:
+    if show:
         image.show()
+    return output
 
 
 if __name__ == "__main__":
