@@ -146,6 +146,25 @@ You can generate a preview image on your computer without needing the InkyPi har
 
 The image is saved as `preview.png` and opens automatically in your default image viewer.
 
+### Preview without credentials
+
+`--demo` renders a sample week offline — no Strava credentials, no API calls.
+Useful for checking how a layout behaves at a given panel size, including the
+busiest case of three activities stacked in one day:
+
+```bash
+python preview.py --demo --mode combined
+python preview.py --demo --mode calendar --width 800 --height 480
+```
+
+The easiest way to get a refresh token is the included OAuth helper, which
+writes everything into `.env` for you (set your Strava app's callback domain to
+`localhost` first):
+
+```bash
+python get_strava_token.py
+```
+
 ## Activity Types
 
 The plugin tracks these activity types:
